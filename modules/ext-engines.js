@@ -60,14 +60,14 @@ let ext = {
      *     -- new file - like 'hello.js', '../hello.js' or 'hello'
      * @param {boolean|string} [params.debug_info_flag]
      * @param {number} [params.max_restart_e_times=1] - max restart times for avoiding infinite recursion
-     * @param {*} [params.instant_run_flag] - whether to perform an instant run or not
+     * @param {boolean} [params.instant_run_flag] - whether to perform an instant run or not
      * @example
      * enginesx.restart({
      *    debug_info_flag: true,
      *    max_restart_e_times: 3,
      *    instant_run_flag: false,
      * });
-     * @return {boolean}
+     * @returns {boolean}
      */
     restart(params) {
         let _params = params || {};
@@ -127,10 +127,9 @@ function _fillConfig(c) {
     _cfg.loopTimes = _c.loopTimes === undefined ? 1 : _c.loopTimes;
     Object.keys(_c.arguments || {}).forEach(k => _cfg.setArgument(k, _c.arguments[k]));
     if (typeof _c.scriptConfig === 'object') {
-        _cfg.scriptConfig = new com.stardust.autojs.project.ScriptConfig(
-            _c.scriptConfig.useFeatures || [],
-            _c.scriptConfig.uiMode === undefined ? false : _c.scriptConfig.uiMode
-        );
+        let _features = _c.scriptConfig.useFeatures || [];
+        let _ui_mode = _c.scriptConfig.uiMode === undefined ? false : _c.scriptConfig.uiMode;
+        _cfg.scriptConfig = new com.stardust.autojs.project.ScriptConfig(_features, _ui_mode);
     }
     return _cfg;
 }

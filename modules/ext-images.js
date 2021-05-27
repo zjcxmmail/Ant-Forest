@@ -2,9 +2,11 @@ global.imagesx = typeof global.imagesx === 'object' ? global.imagesx : {};
 
 require('./mod-monster-func').load();
 require('./ext-global').load();
-require('./ext-device').load().getDisplay(true);
+require('./ext-device').load();
+require('./ext-a11y').load();
 
-let _ext = {
+let ext = {
+    _has_scr_capt_permission: threads.atomic(0),
     /**
      * Copied from Auto.js 4.1.1 alpha2 source code by SuperMonster003 at Jan 10, 2021
      */
@@ -97,7 +99,7 @@ let _ext = {
         return runtime.getImages().initOpenCvIfNeeded();
     },
     /**
-     * @param {native.Array<org.opencv.core.Point>} points
+     * @param {org.opencv.core.Point[]} points
      * @returns {org.opencv.core.Point[]}
      */
     _toPointArray(points) {
@@ -108,6 +110,9 @@ let _ext = {
         return _arr;
     },
     _buildRegion(region, img) {
+        if (!img) {
+            throw Error('img is required for imagesx._buildRegion()');
+        }
         if (region === undefined) {
             region = [];
         }
@@ -117,10 +122,10 @@ let _ext = {
         let height = region[3] === undefined ? (img.getHeight() - y) : region[3];
         let r = new org.opencv.core.Rect(x, y, width, height);
         if (x < 0 || y < 0 || x + width > img.width || y + height > img.height) {
-            throw new Error('Out of region: ' +
-                'region = [' + [x, y, width, height] + '], ' +
-                'image.size = [' + [img.width, img.height] + ']'
-            );
+            throw new Error('Out of region:\n' +
+                'region: ' + [x, y, width, height].join(', ').surround('[ ') + '\n' +
+                'region size: ' + [x + width, y + height].join(', ').surround('[ ') + '\n' +
+                'image size: ' + [img.width, img.height].join(', ').surround('[ '));
         }
         return r;
     },
@@ -138,7 +143,7 @@ let _ext = {
             data: {R: _R, G: _G, B: _B},
             arr: _arr,
             std: Number(Math.std(_arr)),
-            string: '[' + _arr.join(', ') + ']',
+            string: _arr.join(', ').surround('[]'),
         };
     },
     isRecycled(img, is_strict) {
@@ -218,85 +223,102 @@ let _ext = {
         return this.capt(compress_level);
     },
     /**
+     * @typedef {
+     *     boolean|'AUTO'|'LANDSCAPE'|'PORTRAIT'|*
+     * } ScreenCapturerOrientation - true for 'LANDSCAPE'; false for 'PORTRAIT'; default for 'AUTO'
+     */
+    /**
      * Substitution of images.requestScreenCapture() for avoiding unresponsive running when invoked more than once
-     * @param {boolean} [landscape=undefined] - true for landscape; false for portrait; others for auto
+     * @param {ScreenCapturerOrientation} [landscape='AUTO']
      * @returns {boolean}
      */
     requestScreenCapture(landscape) {
-        let _aj_pkg = context.packageName;
-        let _is_pro = _aj_pkg.match(/[Pp]ro/);
-        let _is_pro_7 = _is_pro && app.autojs.versionName.match(/^Pro 7/);
-        if (global._$_request_screen_capture) {
+        if (this._has_scr_capt_permission.get() > 0) {
             return true;
         }
-        global._$_request_screen_capture = threads.atomic(1);
+        this._has_scr_capt_permission.incrementAndGet();
 
         let javaImages = runtime.getImages();
         let ResultAdapter = require.call(global, 'result_adapter');
         let ScreenCapturer = com.stardust.autojs.core.image.capture.ScreenCapturer;
 
-        let _orientation = typeof landscape !== 'boolean'
-            ? ScreenCapturer.ORIENTATION_AUTO
-            : landscape
-                ? ScreenCapturer.ORIENTATION_LANDSCAPE
-                : ScreenCapturer.ORIENTATION_PORTRAIT;
+        let _is_pro = context.packageName.match(/[Pp]ro/);
+        let _orientation = landscape === undefined || landscape === 'AUTO'
+            ? ScreenCapturer.ORIENTATION_AUTO : typeof landscape === 'boolean'
+                ? landscape
+                    ? ScreenCapturer.ORIENTATION_LANDSCAPE
+                    : ScreenCapturer.ORIENTATION_PORTRAIT
+                : landscape === 'LANDSCAPE' ? ScreenCapturer.ORIENTATION_LANDSCAPE
+                    : landscape === 'PORTRAIT' ? ScreenCapturer.ORIENTATION_PORTRAIT
+                        : ScreenCapturer.ORIENTATION_AUTO;
         let _adapter = !_is_pro
             ? javaImages.requestScreenCapture(_orientation)
             : javaImages.requestScreenCapture.apply(javaImages, [
                 _orientation, -1, /* width */ -1, /* height */ false, /* isAsync */
-            ].slice(0, _is_pro_7 ? 3 : 4));
+            ].slice(0, _is_pro && app.autojs.versionName.match(/^Pro 7/) ? 3 : 4));
 
         if (ResultAdapter.wait(_adapter)) {
             return true;
         }
-        delete global._$_request_screen_capture;
+        this._has_scr_capt_permission.decrementAndGet();
     },
-    permit(params) {
-        if (global._$_request_screen_capture) {
+    /**
+     * Request for screen capture permission (with throttling and dialog auto dismissing)
+     * @param {Object} [options={}]
+     * @param {boolean} [options.restart_e_flag=true] - try restarting the engine when failed
+     * @param {ScreenCapturerOrientation} [options.screen_capturer_orientation='PORTRAIT']
+     * @param {Object} [options.restart_e_params={}]
+     * @param {number} [options.restart_e_params.max_restart_e_times=3]
+     * @param {boolean} [options.no_debug_info=false]
+     * @returns {boolean}
+     */
+    permit(options) {
+        if (this._has_scr_capt_permission.get() > 0) {
             return true;
         }
-        let $_und = x => typeof x === 'undefined';
-        let _par = params || {};
+        let _opt = options || {};
+        let _no_dbg = _opt.no_debug_info;
+        let _debugInfo = function () {
+            _no_dbg || debugInfo.apply(null, arguments);
+        };
 
-        debugInfo('开始申请截图权限');
+        _debugInfo('开始申请截图权限');
 
-        let $_sel = getSelector();
-
-        if ($_und(_par.restart_e_flag)) {
-            _par.restart_e_flag = true;
+        if (typeof _opt.restart_e_flag === 'undefined') {
+            _opt.restart_e_flag = true;
         } else {
-            let _self = _par.restart_e_flag;
-            _par.restart_e_flag = !!_self;
+            let _self = _opt.restart_e_flag;
+            _opt.restart_e_flag = !!_self;
         }
-        if (!_par.restart_e_params) {
-            _par.restart_e_params = {};
+        if (!_opt.restart_e_params) {
+            _opt.restart_e_params = {};
         }
-        if (!_par.restart_e_params.max_restart_e_times) {
-            _par.restart_e_params.max_restart_e_times = 3;
+        if (!_opt.restart_e_params.max_restart_e_times) {
+            _opt.restart_e_params.max_restart_e_times = 3;
         }
 
-        debugInfo('已开启弹窗监测线程');
+        _debugInfo('已开启弹窗监测线程');
 
         let _thread_prompt = threads.start(function () {
             let _sltr_remember = id('com.android.systemui:id/remember');
-            let _sel_remember = () => $_sel.pickup(_sltr_remember);
+            let _sel_remember = () => $$sel.pickup(_sltr_remember);
             let _rex_sure = /S(tart|TART) [Nn][Oo][Ww]|立即开始|允许/;
-            let _sel_sure = type => $_sel.pickup(_rex_sure, type);
+            let _sel_sure = type => $$sel.pickup(_rex_sure, type);
 
-            if (waitForAction(_sel_sure, 5e3)) {
-                if (waitForAction(_sel_remember, 1e3)) {
-                    debugInfo('勾选"不再提示"复选框');
+            if (waitForAction(_sel_sure, 4.8e3)) {
+                if (waitForAction(_sel_remember, 600)) {
+                    _debugInfo('勾选"不再提示"复选框');
                     clickAction(_sel_remember(), 'w');
                 }
-                if (waitForAction(_sel_sure, 2e3)) {
+                if (waitForAction(_sel_sure, 2.4e3)) {
                     let _w = _sel_sure();
-                    let _act_msg = '点击"' + _sel_sure('txt') + '"按钮';
+                    let _act_msg = '点击' + _sel_sure('txt').surround('"') + '按钮';
 
-                    debugInfo(_act_msg);
+                    _debugInfo(_act_msg);
                     clickAction(_w, 'w');
 
                     if (!waitForAction(() => !_sel_sure(), 1e3)) {
-                        debugInfo('尝试click()方法再次' + _act_msg);
+                        _debugInfo('尝试click()方法再次' + _act_msg);
                         clickAction(_w, 'click');
                     }
                 }
@@ -304,38 +326,41 @@ let _ext = {
         });
 
         let _thread_monitor = threads.start(function () {
-            if (waitForAction(() => !!_req_result, 3.6e3, 300)) {
+            if (waitForAction(() => !!_req_result, 4.8e3, 80)) {
                 _thread_prompt.interrupt();
-                return debugInfo('截图权限申请结果: 成功');
+                return _debugInfo('截图权限申请结果: 成功');
             }
             if (typeof $$flag !== 'undefined') {
                 if (!$$flag.debug_info_avail) {
                     $$flag.debug_info_avail = true;
-                    debugInfo('开发者测试模式已自动开启', 3);
+                    _no_dbg = false;
+                    _debugInfo('开发者测试模式已自动开启', 3);
                 }
             }
-            if (_par.restart_e_flag) {
-                debugInfo('截图权限申请结果: 失败', 3);
+            if (_opt.restart_e_flag) {
+                _debugInfo('截图权限申请结果: 失败', 3);
                 try {
                     let _m = android.os.Build.MANUFACTURER.toLowerCase();
                     if (_m.match(/xiaomi/)) {
-                        debugInfo('__split_line__dash__');
-                        debugInfo('检测到当前设备制造商为小米', 3);
-                        debugInfo('可能需要给Auto.js以下权限:', 3);
-                        debugInfo('"后台弹出界面"', 3);
-                        debugInfo('__split_line__dash__');
+                        _debugInfo('__split_line__dash__');
+                        _debugInfo('检测到当前设备制造商为小米', 3);
+                        _debugInfo('可能需要给Auto.js以下权限:', 3);
+                        _debugInfo('"后台弹出界面"', 3);
+                        _debugInfo('__split_line__dash__');
                     }
                 } catch (e) {
                     // nothing to do here
                 }
                 if (files.exists('./ext-engines')) {
-                    return require('./ext-engines').restart(_par.restart_e_params);
+                    return require('./ext-engines').restart(_opt.restart_e_params);
                 }
             }
             messageAction('截图权限申请失败', 8, 1, 0, 1);
         });
 
-        let _req_result = this.requestScreenCapture(false);
+        let _sco = _opt.screen_capturer_orientation;
+        _sco = _sco === undefined ? 'PORTRAIT' : _sco;
+        let _req_result = this.requestScreenCapture(_sco);
 
         _thread_monitor.join();
 
@@ -344,7 +369,7 @@ let _ext = {
     /**
      * @param {ImageWrapper$} img - should be recycled manually if needed
      * @param {ImageWrapper$|string} template - should be recycled manually if needed
-     * @param {{}} [options]
+     * @param {Object} [options]
      * @param {string} [options.local_cache_name] - when cache name is given (like 'abc'), the file named 'abc.jpg' in the path files.getSdcardPath() + '/.local/pics/' will be: a, directly as template image -- 'abc.jpg' exists already; b, generated when matched -- 'abc.jpg' not exists; when not given, new matching will be made each time, regardless of the existence of storage file with the same name
      * @param {number} [options.template_device_width=W] - screen display width of the template; see {@link getDisplay} -> {@link cX}
      * @param {number} [options.max_results=5] - max matched results; see {@link images.matchTemplate}
@@ -419,7 +444,7 @@ let _ext = {
         function _byBase64() {
             if (typeof template === 'string') {
                 try {
-                    /** @type _Base64Image */
+                    /** @type {_Base64Image} */
                     let _img = require('./mod-treasury-vault').image_base64_data[template];
                     return _microResize(_img.getImage(), _img.src_dev_width);
                 } catch (e) {
@@ -488,9 +513,7 @@ let _ext = {
         let _w = _bounds.right - _x;
         let _h = _bounds.bottom - _y;
 
-        let _mch = col => images.findColorInRegion(
-            img, col, _x, _y, _w, _h, threshold
-        );
+        let _mch = col => images.findColorInRegion(img, col, _x, _y, _w, _h, threshold);
         if (!Array.isArray(color)) {
             return _mch(color) ? _bounds : null;
         }
@@ -512,8 +535,7 @@ let _ext = {
         org.opencv.imgproc.Imgproc.bilateralFilter(
             img.mat, _mat,
             d || 0, sigma_color || 40, sigma_space || 20,
-            org.opencv.core.Core['BORDER_' + (border_type || 'DEFAULT')]
-        );
+            org.opencv.core.Core['BORDER_' + (border_type || 'DEFAULT')]);
         return images.matToImage(_mat);
     },
     /**
@@ -522,8 +544,9 @@ let _ext = {
      *     pool?: object,
      *     keep_pool_data?: boolean,
      *     duration?: boolean,
+     *     region?: number[],
      * }} [options]
-     * @returns AfHoughBallsResult
+     * @returns {AfHoughBallsResult}
      */
     findAFBallsByHough(options) {
         timeRecorder('hough_beginning');
@@ -541,7 +564,7 @@ let _ext = {
         let _src_img_stg = _cfg.hough_src_img_strategy;
         let _results_stg = _cfg.hough_results_strategy;
         let _min_dist = cX(_cfg.min_balls_distance);
-        let _region = _cfg.eballs_recognition_region
+        let _region = _opt.region || _cfg.eballs_recognition_region
             .map((v, i) => i % 2 ? cYx(v, true) : cX(v, true));
 
         /** @type {EnergyBallsInfo[]} */
@@ -553,9 +576,7 @@ let _ext = {
          *     water?: EnergyBallsInfo[]
          * }} EnergyBallsInfoClassified
          */
-        /**
-         * @type EnergyBallsInfoClassified
-         */
+        /** @type {EnergyBallsInfoClassified} */
         let _balls_data_o = {};
         let _pool = _opt.pool || {
             data: [],
@@ -623,7 +644,7 @@ let _ext = {
          *         img_samples_processing: number,
          *     },
          * }} EnergyBallsDuration */
-        /** @type EnergyBallsDuration */
+        /** @type {EnergyBallsDuration} */
         let _du_o = _opt.duration !== false ? {
             duration: Object.assign({
                 _map: [
@@ -638,18 +659,11 @@ let _ext = {
                 total: Number(timeRecorder('hough_beginning', 'L')),
                 showDebugInfo() {
                     debugInfo('__split_line__dash__');
-                    debugInfo('图像填池: ' +
-                        this.fill_up_pool + 'ms' + '  [ ' +
-                        _cfg.forest_balls_pool_itv + ', ' +
-                        _cfg.forest_balls_pool_limit + ' ]'
-                    );
-                    this._map.forEach((arr) => {
-                        let [_k, _v] = arr;
-                        if (_k in this) {
-                            if (this.hasOwnProperty(_k)) {
-                                debugInfo(_v + ': ' + this[_k] + 'ms');
-                            }
-                        }
+                    debugInfo('图像填池: ' + this.fill_up_pool + 'ms  ' + [
+                        _cfg.forest_balls_pool_itv, _cfg.forest_balls_pool_limit,
+                    ].join(', ').surround('[ '));
+                    this._map.filter(a => this[a[0]]).forEach((a) => {
+                        debugInfo(a[1] + ': ' + this[a[0]] + 'ms');
                     });
                     debugInfo('__split_line__dash__');
                 },
@@ -663,7 +677,7 @@ let _ext = {
          */
         return Object.assign(_balls_data_o, _du_o, {
             expand() {
-                /** @type EnergyBallsInfo[] */
+                /** @type {EnergyBallsInfo[]} */
                 let _data = [];
                 for (let i in this) {
                     if (this.hasOwnProperty(i)) {
@@ -702,47 +716,30 @@ let _ext = {
                     let {x: _ox, y: _oy, r: _or} = o;
                     let {x: _zx, y: _zy, r: _zr} = _tree_area;
                     let _ct_dist_min = _or + _zr;
-                    let _ct_dist = Math.sqrt(
-                        Math.pow(_zy - _oy, 2) + Math.pow(_zx - _ox, 2)
-                    );
+                    let _ct_dist = Math.sqrt(Math.pow(_zy - _oy, 2) + Math.pow(_zx - _ox, 2));
                     return _ct_dist < _ct_dist_min;
                 };
             }
             if (!imagesx.isWaterBall) {
                 imagesx.isWaterBall = (o, capt, container) => {
-                    let _capt = capt || _this.capt();
                     let _ctx = o.x;
                     let _cty = o.y;
-                    let _offset = o.r / Math.SQRT2;
-                    let _x_min = _ctx - _offset;
-                    let _y_min = _cty - _offset;
-                    let _x_max = _ctx + _offset;
-                    let _y_max = _cty + _offset;
-                    let _step = 2;
-                    let _hue_max = _cfg.homepage_wball_max_hue_b0;
                     let _cty_max = cYx(386);
-                    let _result = false;
 
                     if (_cty > _cty_max) {
-                        return _result;
+                        return false;
                     }
 
-                    while (_x_min < _x_max && _y_min < _y_max) {
-                        let _col = images.pixel(_capt, _x_min, _y_min);
-                        let _red = colors.red(_col);
-                        let _green = colors.green(_col);
-                        // hue value in HSB mode without blue component
-                        let _hue = 120 - (_red / _green) * 60;
-                        if (isFinite(_hue) && _hue < _hue_max) {
-                            if (Array.isArray(container)) {
-                                container.push(o);
-                            }
-                            _result = true;
-                            break;
-                        }
-                        _x_min += _step;
-                        _y_min += _step;
-                    }
+                    let _capt = capt || _this.capt();
+                    let _hue_max = _cfg.homepage_wball_max_hue_no_blue;
+                    let _offset_x = o.r * Math.sin(30 * Math.PI / 180);
+                    let _offset_y = o.r * Math.cos(30 * Math.PI / 180);
+                    let _x_min = _ctx - _offset_x;
+                    let _y_min = _cty - _offset_y;
+                    let _x_max = _ctx + _offset_x;
+                    let _y_max = _cty + _offset_y;
+                    let _step = 2;
+                    let _result = _progress(_x_min, _step, _y_min, _step);
 
                     if (!capt) {
                         _this.reclaim(_capt);
@@ -750,6 +747,32 @@ let _ext = {
                     }
 
                     return _result;
+
+                    // tool function(s) //
+
+                    function _progress(x_min, x_step, y_min, y_step) {
+                        while (x_min <= _x_max && y_min <= _y_max) {
+                            if (_hit(_capt, x_min, y_min)) {
+                                if (Array.isArray(container)) {
+                                    container.push(o);
+                                }
+                                return true;
+                            }
+                            x_min += x_step;
+                            y_min += y_step;
+                        }
+                    }
+
+                    function _hit(capt, x, y) {
+                        let _col = images.pixel(capt, x, y);
+                        let _red = colors.red(_col);
+                        let _green = colors.green(_col);
+                        // hue value in HSB mode without blue component
+                        let _hue = 120 - (_red / _green) * 60;
+                        if (isFinite(_hue) && _hue < _hue_max) {
+                            return true;
+                        }
+                    }
                 };
             }
             if (!imagesx.isRipeBall) {
@@ -814,22 +837,21 @@ let _ext = {
                 let [_l, _t, _r, _b] = _region;
                 let [_w, _h] = [_r - _l, _b - _t];
 
-                let _gray = _getImg('gray', true, () => images.grayscale(capt));
-
-                let _adapt_thrd = _getImg('adapt_thrd', _src_img_stg.adapt_thrd,
-                    () => images.adaptiveThreshold(
-                        _gray, 255, 'GAUSSIAN_C', 'BINARY_INV', 9, 6
-                    )
-                );
-                let _med_blur = _getImg('med_blur', _src_img_stg.med_blur,
-                    () => images.medianBlur(_gray, 9)
-                );
-                let _blur = _getImg('blur', _src_img_stg.blur,
-                    () => images.blur(_gray, 9, [-1, -1], 'REPLICATE')
-                );
-                let _blt_fltr = _getImg('blt_fltr', _src_img_stg.blt_fltr,
-                    () => _this.bilateralFilter(_gray, 9, 20, 20, 'REPLICATE')
-                );
+                let _gray = _getImg('gray', true, () => {
+                    return images.grayscale(capt);
+                });
+                let _adapt_thrd = _getImg('adapt_thrd', _src_img_stg.adapt_thrd, () => {
+                    return images.adaptiveThreshold(_gray, 255, 'GAUSSIAN_C', 'BINARY_INV', 9, 6);
+                });
+                let _med_blur = _getImg('med_blur', _src_img_stg.med_blur, () => {
+                    return images.medianBlur(_gray, 9);
+                });
+                let _blur = _getImg('blur', _src_img_stg.blur, () => {
+                    return images.blur(_gray, 9, [-1, -1], 'REPLICATE');
+                });
+                let _blt_fltr = _getImg('blt_fltr', _src_img_stg.blt_fltr, () => {
+                    return _this.bilateralFilter(_gray, 9, 20, 20, 'REPLICATE');
+                });
 
                 let _proc_key = 'img_samples_processing';
                 timeRecorder(_proc_key);
@@ -988,10 +1010,7 @@ let _ext = {
                     }
 
                     function _calcDist(p1, p2) {
-                        return Math.sqrt(
-                            Math.pow(p2.x - p1.x, 2) +
-                            Math.pow(p2.y - p1.y, 2)
-                        );
+                        return Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
                     }
                 }
 
@@ -1055,9 +1074,7 @@ let _ext = {
                      *     width: function(): number, height: function(): number
                      * }} EnergyBallsExtProp
                      */
-                    /**
-                     * @returns EnergyBallsMixedProp
-                     */
+                    /** @returns {EnergyBallsMixedProp} */
                     function _extProps(o) {
                         let {x: _x, y: _y, r: _r} = o;
                         return Object.assign(o, {
@@ -1165,7 +1182,7 @@ let _ext = {
                 min_balls_distance: 0.09,
                 forest_balls_pool_limit: 2,
                 forest_balls_pool_itv: 240,
-                homepage_wball_max_hue_b0: 42,
+                homepage_wball_max_hue_no_blue: 47,
             };
         }
     },
@@ -1230,14 +1247,12 @@ let _ext = {
                         colors.red(color) - threshold,
                         colors.green(color) - threshold,
                         colors.blue(color) - threshold,
-                        255
-                    );
+                        255);
                     let _upper_bound = new Scalar(
                         colors.red(color) + threshold,
                         colors.green(color) + threshold,
                         colors.blue(color) + threshold,
-                        255
-                    );
+                        255);
 
                     if (rect === null) {
                         Core.inRange(image.getMat(), _lower_bound, _upper_bound, _bi);
@@ -1267,9 +1282,7 @@ let _ext = {
 
         Object.assign(_finder, _finder_ext);
 
-        let _pts = this._toPointArray(
-            _finder.findAllPointsForColor(img, _color, _thrd, _region)
-        );
+        let _pts = this._toPointArray(_finder.findAllPointsForColor(img, _color, _thrd, _region));
         _opt.is_recycle_img && img.recycle();
         return _pts;
     },
@@ -1401,7 +1414,7 @@ let _ext = {
     /**
      * @param {ImageWrapper$} img
      * @param {ImageWrapper$} template
-     * @param [options]
+     * @param {Object} [options]
      * @param {number} [options.threshold=0.9]
      * @param {number} [options.weakThreshold=0.6]
      * @param {number} [options.level=-1]
@@ -1444,7 +1457,219 @@ let _ext = {
         }
         return _result;
     },
+    /**
+     * Fetching data by calling OCR API from Baidu
+     * @param {[]|ImageWrapper$|UiObject$|UiObjectCollection$} src -- will be converted into ImageWrapper$
+     * @param {Object} [options]
+     * @param {ImageWrapper$} [options.capt_img]
+     * @param {boolean} [options.no_toast_msg_flag=false]
+     * @param {number} [options.fetch_times=1]
+     * @param {number} [options.fetch_interval=100]
+     * @param {boolean} [options.debug_info_flag=false]
+     * @param {number} [options.timeout=60e3] -- no less than 5e3
+     * @example
+     * require('ext-a11y').load();
+     * // [[], [], []] -- 3 groups of data
+     * console.log(imagesx.baiduOcr($$sel.pickup(/\xa0/, 'widgets'), {
+     *     fetch_times: 3,
+     *     timeout: 12e3
+     * }));
+     * @returns {Array|Array[]} -- [] or [[], [], []...]
+     */
+    baiduOcr(src, options) {
+        if (!src) {
+            return [];
+        }
+        let _opt = options || {};
+        let _tt = _opt.timeout || 60e3;
+        if (!+_tt || _tt < 5e3) {
+            _tt = 5e3;
+        }
+        let _tt_ts = Date.now() + _tt;
+
+        let _imagesx = this;
+        let _capt = _opt.capt_img || this.capt();
+
+        let _msg = '使用baiduOcr获取数据';
+        debugInfo(_msg);
+        _opt.no_toast_msg_flag || toast(_msg);
+
+        let _token = '';
+        let _max_token = 10;
+        let _thd_token = threads.start(function () {
+            while (_max_token--) {
+                try {
+                    // noinspection SpellCheckingInspection
+                    _token = http.get(
+                        'https://aip.baidubce.com/oauth/2.0/token' +
+                        '?grant_type=client_credentials' +
+                        '&client_id=YIKKfQbdpYRRYtqqTPnZ5bCE' +
+                        '&client_secret=hBxFiPhOCn6G9GH0sHoL0kTwfrCtndDj')
+                        .body.json()['access_token'];
+                    debugInfo('access_token准备完毕');
+                    break;
+                } catch (e) {
+                    sleep(200);
+                }
+            }
+        });
+        _thd_token.join(_tt);
+
+        let _lv = Number(!_opt.no_toast_msg_flag);
+        let _err = s => messageAction(s, 3, _lv, 0, 'both_dash');
+        if (_max_token < 0) {
+            _err('baiduOcr获取access_token失败');
+            return [];
+        }
+        if (_thd_token.isAlive()) {
+            _err('baiduOcr获取access_token超时');
+            return [];
+        }
+
+        let _max = _opt.fetch_times || 1;
+        let _max_b = _max;
+        let _itv = _opt.fetch_interval || 300;
+        let _res = [];
+        let _thds = [];
+        let _allDead = () => _thds.every(thd => !thd.isAlive());
+
+        while (_max--) {
+            _thds.push(threads.start(function () {
+                let _max_img = 10;
+                let _img = _stitchImgs(src);
+                while (_max_img--) {
+                    if (!_img || !_max_img) {
+                        return [];
+                    }
+                    if (!_imagesx.isRecycled(_img)) {
+                        break;
+                    }
+                    _img = _stitchImgs(src);
+                }
+                let _cur = _max_b - _max;
+                let _suffix = _max_b > 1 ? ' [' + _cur + '] ' : '';
+                debugInfo('stitched image' + _suffix + '准备完毕');
+
+                try {
+                    let _words = JSON.parse(http.post('https://aip.baidubce.com/' +
+                        'rest/2.0/ocr/v1/general_basic?access_token=' + _token, {
+                        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                        image: images.toBase64(_img),
+                        image_type: 'BASE64',
+                    }).body.string())['words_result'];
+                    if (_words) {
+                        debugInfo('数据' + _suffix + '获取成功');
+                        _res.push(_words.map(val => val['words']));
+                    }
+                } catch (e) {
+                    if (!e.message.match(/InterruptedIOException/)) {
+                        throw (e);
+                    }
+                } finally {
+                    _img.recycle();
+                    _img = null;
+                }
+            }));
+            sleep(_itv);
+        }
+
+        threads.start(function () {
+            while (!_allDead()) {
+                if (Date.now() >= _tt_ts) {
+                    _thds.forEach(thd => thd.interrupt());
+
+                    let _msg = 'baiduOcr获取数据超时';
+                    let _toast = Number(!_opt.no_toast_msg_flag);
+                    messageAction(_msg, 3, _toast, 0, 'up_dash');
+
+                    if (_res.length) {
+                        messageAction('已获取的数据可能不完整', 3);
+                    }
+                    return showSplitLine('', 'dash');
+                }
+                sleep(500);
+            }
+        });
+
+        while (1) {
+            if (_allDead()) {
+                if (!_opt.no_toast_msg_flag && _res.length) {
+                    toast('baiduOcr获取数据完毕');
+                }
+                return _max_b === 1 ? _res[0] : _res;
+            }
+            sleep(500);
+        }
+
+        // tool function(s) //
+
+        function _stitchImgs(imgs) {
+            if (!Array.isArray(imgs)) {
+                imgs = [imgs].slice();
+            }
+
+            imgs = imgs.map((img) => {
+                let type = _getType(img);
+                if (type === 'UiObject') {
+                    return _widgetToImage(img);
+                }
+                if (type === 'UiObjectCollection') {
+                    return _widgetsToImage(img);
+                }
+                return img;
+            }).filter(img => !!img);
+
+            return _stitchImg(imgs);
+
+            // tool function(s) //
+
+            function _getType(o) {
+                let matched = o.toString().match(/\w+(?=@)/);
+                return matched ? matched[0] : '';
+            }
+
+            function _widgetToImage(widget) {
+                try {
+                    // FIXME Nov 11, 2019
+                    // there is a strong possibility that `widget.bounds()` would throw an exception
+                    // like 'Cannot find function bounds in object xxx.xxx.xxx.UiObject@abcde'
+                    let [$1, $2, $3, $4] = widget.toString()
+                        .match(/.*boundsInScreen:.*\((\d+), (\d+) - (\d+), (\d+)\).*/)
+                        .map(x => Number(x)).slice(1);
+                    return images.clip(_capt, $1, $2, $3 - $1, $4 - $2);
+                } catch (e) {
+                    // Wrapped java.lang.IllegalArgumentException: x + width must be <= bitmap.width()
+                }
+            }
+
+            function _widgetsToImage(widgets) {
+                let imgs = [];
+                widgets.forEach((widget) => {
+                    let img = _widgetToImage(widget);
+                    img && imgs.push(img);
+                });
+                return _stitchImg(imgs);
+            }
+
+            function _stitchImg(imgs) {
+                let _isImgWrap = o => _getType(o) === 'ImageWrapper';
+                if (_isImgWrap(imgs) && !Array.isArray(imgs)) {
+                    return imgs;
+                }
+                if (imgs.length === 1) {
+                    return imgs[0];
+                }
+                let _stitched = imgs[0];
+                imgs.forEach((img, idx) => {
+                    if (idx) {
+                        _stitched = images.concat(_stitched, img, 'BOTTOM');
+                    }
+                });
+                return _stitched;
+            }
+        }
+    },
 };
 
-module.exports = _ext;
-module.exports.load = () => global.imagesx = _ext;
+module.exports = ext;
+module.exports.load = () => global.imagesx = ext;

@@ -1,6 +1,33 @@
 ******
 ### 版本历史 - 2.x
 ******
+# v2.1.2
+###### 2021/05/19
+* `修复` 能量雨收集工具高概率出现截图权限申请失败的问题 _[`issue #467`](https://github.com/SuperMonster003/Ant-Forest/issues/467)_
+* `修复` 支付宝应用控件变更导致主账户登录失败的问题
+* `优化` 独立无障碍服务模块(a11y)及本地存储扩展模块(storage)
+* `优化` 截图权限申请扩展方法在多线程等极端条件下的适应性
+
+# v2.1.1
+###### 2021/05/17
+* `新增` 能量雨收集工具 (简易) (/tools/energy-rain-harvesting.js)
+* `修复` 配置工具采集排行榜列表数据功能异常 _[`issue #462`](https://github.com/SuperMonster003/Ant-Forest/issues/462)_
+* `修复` 部署工具备份本地项目时无法处理空项目目录的问题 _[`issue #459`](https://github.com/SuperMonster003/Ant-Forest/issues/459)_
+* `优化` 完善Auto.js版本异常检测列表及异常提示界面样式
+* `优化` 逛一逛按钮采集方案结束页面判断条件 _[`issue #391`](https://github.com/SuperMonster003/Ant-Forest/issues/391#issuecomment-840679845)_
+* `优化` 去除"修改系统设置权限"辅助工具的模块依赖 _[`issue #465`](https://github.com/SuperMonster003/Ant-Forest/issues/465)_
+
+# v2.1.0
+###### 2021/04/15
+* `新增` 增加"逛一逛按钮"采集策略 (默认为"排行榜列表"采集策略) _[`issue #449`](https://github.com/SuperMonster003/Ant-Forest/issues/449)_ _[`#446`](https://github.com/SuperMonster003/Ant-Forest/issues/446)_ _[`#391`](https://github.com/SuperMonster003/Ant-Forest/issues/391)_
+* `修复` 解锁模块适配部分OPPO设备 (PIN方案)
+* `修复` appx.checkAccessibility()无法在UI模式下使用的问题
+* `修复` 森林页面暗色主题时浇水回赠能量球可能无法连续收取的问题
+* `修复` 自定义黑名单好友数量较多时删除操作可能导致报错的问题
+* `优化` 项目代码中所有尾逗号的处理 (Add when multiline)
+* `优化` 清除好友森林页面统计能量数据时对于用户昵称的依赖 _[`issue #228`](https://github.com/SuperMonster003/Ant-Forest/issues/228)_  _[`#223`](https://github.com/SuperMonster003/Ant-Forest/issues/223)_  _[`#218`](https://github.com/SuperMonster003/Ant-Forest/issues/218)_
+* `优化` 增加支付宝手势锁监听器并在触发后适时结束脚本 _[`issue #452`](https://github.com/SuperMonster003/Ant-Forest/issues/452)_
+
 # v2.0.5
 ###### 2021/03/16
 * `修复` 解锁功能配置参数无法获取默认值的问题 _[`issue #444`](https://github.com/SuperMonster003/Ant-Forest/issues/444)_

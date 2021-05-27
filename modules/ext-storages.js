@@ -1,20 +1,36 @@
 ﻿/**
- * Implement of 'storages' with 'files' api.
- * @since Jun 19, 2020
+ * Substitution of 'storages' with 'files' api.
+ * @since May 18, 2021
  * @author SuperMonster003 {@link https://github.com/SuperMonster003}
  */
 
-module.exports = {
+global.storagesx = typeof global.storagesx === 'object' ? global.storagesx : {};
+
+let _ext = {
+    /**
+     * @param {string} name
+     * @returns {Storage}
+     */
     create(name) {
         return new Storage(name);
     },
+    /**
+     * @param {string} name
+     */
     remove(name) {
         this.create(name).clear();
     },
 };
 
+module.exports = _ext;
+module.exports.load = () => global.storagesx = _ext;
+
 // constructor(s) //
 
+/**
+ * @param {string} name
+ * @constructor
+ */
 function Storage(name) {
     let _dir = files.getSdcardPath() + '/.local/';
     let _full_path = _dir + name + '.nfe';
@@ -74,15 +90,14 @@ function Storage(name) {
             console.warn(e.message);
         }
 
-        let _cA = _classof(new_val, 'Object');
-        let _cB = _classof(_old[key], 'Object');
+        let _cA = Object.prototype.toString.call(new_val).slice(8, -1) === 'Object';
+        let _cB = Object.prototype.toString.call(_old[key]).slice(8, -1) === 'Object';
         let _both_type_o = _cA && _cB;
+
         let _keyLen = () => Object.keys(new_val).length;
 
         if (!forc && _both_type_o && _keyLen()) {
-            _tmp[key] = Object.assign(
-                _old[key], new_val
-            );
+            _tmp[key] = Object.assign(_old[key], new_val);
         } else {
             _tmp[key] = new_val;
         }
@@ -112,11 +127,6 @@ function Storage(name) {
 
     function _clear() {
         files.remove(_full_path);
-    }
-
-    function _classof(src, chk) {
-        let _s = Object.prototype.toString.call(src).slice(8, -1);
-        return chk ? _s.toUpperCase() === chk.toUpperCase() : _s;
     }
 
     function _jsonParseFile(reviver) {
@@ -207,6 +217,6 @@ function Storage(name) {
         console.warn(_dir + _new_file_name);
         console.warn('以供手动排查配置文件中的问题');
 
-        return Error('JSON.parse() failed in mod-storage');
+        return Error('JSON.parse() failed in ext-storages');
     }
 }

@@ -1,218 +1,30 @@
 global.devicex = typeof global.devicex === 'object' ? global.devicex : {};
 
-require('./mod-monster-func').load('messageAction', 'waitForAction', 'debugInfo');
+require('./mod-monster-func').load([
+    'debugInfo', 'waitForAction', 'messageAction', 'keycode', 'clickAction',
+]);
+require('./ext-storages').load();
+require('./ext-a11y').load();
 
+let Intent = android.content.Intent;
+let IntentFilter = android.content.IntentFilter;
+let BatteryManager = android.os.BatteryManager;
+
+// noinspection JSUnusedGlobalSymbols
 let ext = {
-    /**
-     * @type {{
-     *     _parseArgs: function(args: IArguments): {svc: string[], forcible: boolean},
-     *     _getString: function: string,
-     *     enable: function(...boolean|string|string[]): boolean,
-     *     restart: function(...boolean|string|string[]): boolean,
-     *     disable: function(...boolean|string|string[]): boolean,
-     *     state: function(services: (string | string[])=): boolean,
-     *     services: function: string[],
-     * }}
-     */
-    a11y: (() => {
-        let Secure = android.provider.Settings.Secure;
-        let _ctx_reso = context.getContentResolver();
-        let _aj_svc = context.packageName + '/com.stardust.autojs' +
-            '.core.accessibility.AccessibilityService';
-
-        return {
-            /**
-             * @param args {IArguments}
-             * @return {{svc: [string], forcible: boolean}}
-             */
-            _parseArgs(args) {
-                let _svc = [_aj_svc];
-                let _forcible = false;
-                let _type0 = typeof args[0];
-                if (_type0 !== 'undefined') {
-                    if (_type0 === 'object') {
-                        _svc = args[0];
-                        _forcible = !!args[1];
-                    } else if (_type0 === 'string') {
-                        _svc = [args[0]];
-                        _forcible = !!args[1];
-                    } else if (_type0 === 'boolean') {
-                        _forcible = args[0];
-                    }
-                }
-                return {
-                    forcible: _forcible,
-                    svc: _svc,
-                };
-            },
-            /** @return {string} */
-            _getString() {
-                // getString() may be null on some Android OS
-                return Secure.getString(_ctx_reso, Secure.ENABLED_ACCESSIBILITY_SERVICES) || '';
-            },
-            /**
-             * @param {...boolean|string|string[]} [arguments]
-             * @example
-             * // import module with a new instance
-             * let {a11y} = require('./modules/ext-device');
-             * // enable Auto.js itself
-             * a11y.enable();
-             * a11y.enable('org.autojs.autojs/com.stardust.autojs.core.accessibility.AccessibilityService');
-             * a11y.enable('org.autojs.autojs/com.stardust... , true); // enable forcibly
-             * a11y.enable(true); // enable forcibly
-             * // enable other specified service(s)
-             * a11y.enable('com.ext.star.wars/com.dahuo.sunflower.assistant.services.AssistantServicesGestures');
-             * a11y.enable('com.ext.star.wars/com.dahuo.sunflower... , true); // enable forcibly
-             * // enable multi services
-             * a11y.enable([
-             *     'org.autojs.autojs/com.stardust.autojs.core.accessibility.AccessibilityService',
-             *     'com.ext.star.wars/com.dahuo.sunflower.assistant.services.AssistantServicesGestures',
-             *     'com.MoniKet.notificationsaver/com.example.monika.notificationsaver.USSDService',
-             *     'com.sp.protector.free/com.sp.protector.free.engine.AppChangeDetectingAccessibilityService',
-             *     'com.wokee.qpay/com.wokee.qpay.systemwindows.DesktopAccessibilityService',
-             *     'eu.thedarken.sdm/eu.thedarken.sdm.accessibility.core.ACCService',
-             *     'me.zhanghai.android.wechatnotificationtweaks2/me.zhanghai.android.wechatnotificationtweaks.app.AccessibilityService',
-             *     'pl.revanmj.toastsource/pl.revanmj.toastsource.ToastAccessibilityService',
-             * ]);
-             * a11y.enable([...], true); // enable forcibly
-             * @return {boolean} - !!(all_services_started_successfully)
-             */
-            enable() {
-                try {
-                    let _this = this;
-                    let {forcible, svc} = this._parseArgs(arguments);
-                    let _svc;
-                    if (!this.state(svc)) {
-                        _svc = this.enabled_svc.split(':')
-                            .filter(x => !~svc.indexOf(x))
-                            .concat(svc).join(':');
-                    } else if (forcible) {
-                        _svc = this.enabled_svc;
-                    }
-                    if (_svc) {
-                        Secure.putString(_ctx_reso, Secure.ENABLED_ACCESSIBILITY_SERVICES, _svc);
-                        Secure.putInt(_ctx_reso, Secure.ACCESSIBILITY_ENABLED, 1);
-                        if (!waitForAction(() => _this.state(svc), 2e3)) {
-                            let _m = 'Operation timed out';
-                            toast(_m);
-                            console.error(_m);
-                        }
-                    }
-                    return true;
-                } catch (e) {
-                    return false;
-                }
-            },
-            /**
-             * @param {...boolean|string|string[]} [arguments]
-             * @see this.enable
-             * @example
-             * // import module with a new instance
-             * let {a11y} = require('./modules/ext-device');
-             * // disable all services (clear current a11y svc list)
-             * a11y.disable('all'); // doesn't matter whether with true param or not
-             * // disable Auto.js itself
-             * a11y.disable();
-             * a11y.disable('org.autojs.autojs/com.stardust.autojs.core.accessibility.AccessibilityService');
-             * a11y.disable('org.autojs.autojs/com.stardust... , true); // disable forcibly
-             * a11y.disable(true); // disable forcibly
-             * // disable other specified service(s)
-             * a11y.disable('com.ext.star.wars/com.dahuo.sunflower.assistant.services.AssistantServicesGestures');
-             * a11y.disable('com.ext.star.wars/com.dahuo.sunflower... , true); // disable forcibly
-             * // disable multi services
-             * a11y.disable([...]);
-             * a11y.disable([...], true); // disable forcibly
-             * @return {boolean} - !!(all_services_stopped_successfully)
-             */
-            disable() {
-                try {
-                    let _args0 = arguments[0];
-                    let $_str = x => typeof x === 'string';
-                    if ($_str(_args0) && _args0.toLowerCase() === 'all') {
-                        Secure.putString(_ctx_reso, Secure.ENABLED_ACCESSIBILITY_SERVICES, '');
-                        Secure.putInt(_ctx_reso, Secure.ACCESSIBILITY_ENABLED, 1);
-                        return true;
-                    }
-                    let {forcible, svc} = this._parseArgs(arguments);
-                    let _enabled_svc = this._getString();
-                    let _contains = function () {
-                        for (let i = 0, l = svc.length; i < l; i += 1) {
-                            if (~_enabled_svc.indexOf(svc[i])) {
-                                return true;
-                            }
-                        }
-                    };
-                    let _svc;
-                    if (_contains()) {
-                        _svc = _enabled_svc.split(':').filter(x => !~svc.indexOf(x)).join(':');
-                    } else if (forcible) {
-                        _svc = _enabled_svc;
-                    }
-                    if (_svc) {
-                        Secure.putString(_ctx_reso, Secure.ENABLED_ACCESSIBILITY_SERVICES, _svc);
-                        Secure.putInt(_ctx_reso, Secure.ACCESSIBILITY_ENABLED, 1);
-                        _enabled_svc = this._getString();
-                        if (!waitForAction(() => !_contains(), 2e3)) {
-                            let _m = 'Operation timed out';
-                            toast(_m);
-                            console.error(_m);
-                        }
-                    }
-                    return true;
-                } catch (e) {
-                    return false;
-                }
-            },
-            /**
-             * @param {...boolean|string|string[]} [arguments]
-             * @see this.enable
-             * @see this.disable
-             * @return {boolean}
-             */
-            restart() {
-                return this.disable.apply(this, arguments) && this.enable.apply(this, arguments);
-            },
-            /**
-             * @param {string|string[]} [services]
-             * @return {boolean} - all services enabled or not
-             */
-            state(services) {
-                let _enabled_svc = this.enabled_svc = this._getString();
-                let _services = [];
-                if (Array.isArray(services)) {
-                    _services = services.slice();
-                } else if (typeof services === 'undefined') {
-                    _services = [_aj_svc];
-                } else if (typeof services === 'string') {
-                    _services = [services];
-                } else {
-                    throw TypeError('Unknown a11y state type');
-                }
-                return _services.every(svc => ~_enabled_svc.indexOf(svc));
-            },
-            /**
-             * Returns all enabled a11y services
-             * @return {string[]} - [] for empty data (rather than falsy)
-             */
-            services() {
-                return this._getString().split(':').filter(x => !!x);
-            },
-        };
-    })(),
-    /** @type com.stardust.util.ScreenMetrics */
+    _unlock: _unlockGenerator(),
+    /** @type {com.stardust.util.ScreenMetrics} */
     screen_metrics: runtime.getScreenMetrics(),
     /**
      * Substitution of device.wakeUp()
-     * @param timeout
+     * @param {number} [timeout=15e3]
      */
     wakeUp(timeout) {
-        let _wake_lock = context.getSystemService(
-            android.content.Context.POWER_SERVICE
-        ).newWakeLock(
-            android.os.PowerManager.FULL_WAKE_LOCK |
-            android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP |
-            android.os.PowerManager.ON_AFTER_RELEASE, 'bright'
-        );
+        let _wake_lock = context
+            .getSystemService(android.content.Context.POWER_SERVICE)
+            .newWakeLock(android.os.PowerManager.FULL_WAKE_LOCK
+                | android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP
+                | android.os.PowerManager.ON_AFTER_RELEASE, 'bright');
         let _tt = timeout || 15e3;
         _wake_lock.acquire(_tt);
 
@@ -227,21 +39,27 @@ let ext = {
         }, 200);
     },
     /**
+     * Alias for devicex.wakeUp()
+     * @param {number} [timeout=15e3]
+     * @see this.wakeUp
+     */
+    screenOn(timeout) {
+        return this.wakeUp(timeout);
+    },
+    /**
      * Substitution of device.isScreenOn()
      * @returns {boolean}
      */
     isScreenOn() {
         /** @type {android.os.PowerManager} */
-        let _pow_mgr = context.getSystemService(
-            android.content.Context.POWER_SERVICE
-        );
+        let _pow_mgr = context.getSystemService(android.content.Context.POWER_SERVICE);
         return (_pow_mgr.isInteractive || _pow_mgr.isScreenOn).call(_pow_mgr);
     },
     /**
      * device.keepScreenOn()
      * @param {number} [duration=5] -
      * could be minute (less than 100) or second -- 5 and 300000 both for 5 min
-     * @param {object} [params]
+     * @param {Object} [params]
      * @param {boolean} [params.debug_info_flag]
      */
     keepOn(duration, params) {
@@ -257,7 +75,7 @@ let ext = {
     },
     /**
      * device.cancelKeepingAwake()
-     * @param {object} [params]
+     * @param {Object} [params]
      * @param {boolean} [params.debug_info_flag]
      */
     cancelOn(params) {
@@ -266,6 +84,25 @@ let ext = {
         if (_par.debug_info_flag !== false) {
             debugInfo('屏幕常亮已取消');
         }
+    },
+    // screenOff() {
+    //
+    // },
+    isScreenOff() {
+        return !this.isScreenOn();
+    },
+    isLocked() {
+        return context.getSystemService(context.KEYGUARD_SERVICE).isKeyguardLocked();
+    },
+    isUnlocked() {
+        return !this.isLocked();
+    },
+    /**
+     * @param {boolean} [forcibly_debug]
+     * @returns {boolean}
+     */
+    unlock(forcibly_debug) {
+        return this._unlock(forcibly_debug);
     },
     /**
      * Vibrate the device with a certain pattern
@@ -314,7 +151,7 @@ let ext = {
     },
     /**
      * Returns a state number which indicated phone calling state
-     * @return {number}
+     * @returns {number}
      * <br>
      * -- 0: IDLE; <br>
      * -- 1: RINGING; <br>
@@ -328,12 +165,8 @@ let ext = {
         let ITelephony = com.android.internal.telephony.ITelephony;
         let ServiceManager = android.os.ServiceManager;
 
-        let _svr_mgr = ITelephony.Stub.asInterface(
-            ServiceManager.checkService('phone')
-        );
-        let _svc_ctx = context.getSystemService(
-            context.TELEPHONY_SERVICE
-        );
+        let _svr_mgr = ITelephony.Stub.asInterface(ServiceManager.checkService('phone'));
+        let _svc_ctx = context.getSystemService(context.TELEPHONY_SERVICE);
 
         return +_svr_mgr.getCallState() | +_svc_ctx.getCallState();
     },
@@ -341,8 +174,8 @@ let ext = {
      * Returns display screen width and height data and
      * converter functions with different aspect ratios <br>
      * Scaling based on Sony Xperia XZ1 Compact - G8441 (720 × 1280)
-     * @param {?boolean} [global_assign=false] -- set true for global assignment
-     * @param {object} [params]
+     * @param {boolean} [global_assign=false] -- set true for global assignment
+     * @param {Object} [params]
      * @param {boolean} [params.global_assign=false]
      * @param {boolean} [params.debug_info_flag=false]
      * @example
@@ -368,7 +201,7 @@ let ext = {
      * console.log(cYx(400, 1080), cYx(400, -2)); // all the same
      * console.log(cYx(0.6, 16/9), cYx(0.6, -1), cYx(0.6)); // all the same
      * console.log(cYx(0.6, 21/9), cYx(0.6, -2), cYx(0.6, 9/21)); // all the same
-     * @return {{
+     * @returns {{
            [WIDTH]: number, [USABLE_WIDTH]: number,
            [HEIGHT]: number, [USABLE_HEIGHT]: number,
            [screen_orientation]: ScrOrientation,
@@ -462,7 +295,7 @@ let ext = {
          * console.log(x1, x2, x3, x4, x5, x6);
          * // on 1080px device: all 540 (1080 * 0.5) -- base params will be ignored
          * // on 720px device: all 360 (720 * 0.5) -- base params will be ignored
-         * @return {number}
+         * @returns {number}
          */
         function cX(num, base, options) {
             return typeof base === 'boolean'
@@ -506,7 +339,7 @@ let ext = {
          * // on 1080*1920 device: all 960 (1920 * 0.5) -- base params will be ignored
          * // on 720*1280 device: all 640 (1280 * 0.5) -- base params will be ignored
          * console.log(y1, y2, y3, y4, y5, y6);
-         * @return {number}
+         * @returns {number}
          */
         function cY(num, base, options) {
             return typeof base === 'boolean'
@@ -562,7 +395,7 @@ let ext = {
          * // on 1440*1920 device: (height will be ignored)
          * // likewise (replace 1080 with 1440)
          * console.log(y1, y3, y4, y6);
-         * @return {number}
+         * @returns {number}
          */
         function cYx(num, base, options) {
             let _opt = options || {};
@@ -603,14 +436,14 @@ let ext = {
 
         /**
          * adaptive coordinate transform function
-         * @param dxn {number} - 1: horizontal; -1: vertical
-         * @param num {number} - pixel (x) or percentage num (0.x)
+         * @param {number} dxn - 1: horizontal; -1: vertical
+         * @param {number} num - pixel (x) or percentage num (0.x)
          * @param {number} [base] - pixel (x) or preset negative nums (-1,-2,-3)
          * @param {{
          *     is_ratio?: boolean,
          *     to_ratio?: boolean,
          * }} [options]
-         * @return {number}
+         * @returns {number}
          */
         function _cTrans(dxn, num, base, options) {
             let _full = ~dxn ? _W : _H;
@@ -645,8 +478,11 @@ let ext = {
 
         function _getDisp() {
             try {
+                // noinspection JSDeprecatedSymbols
                 _W = _win_svc_disp.getWidth();
+                // noinspection JSDeprecatedSymbols
                 _H = _win_svc_disp.getHeight();
+
                 if (!(_W * _H)) {
                     return _raw();
                 }
@@ -659,12 +495,12 @@ let ext = {
                  * 1: 90°, device is rotated 90 degree counter-clockwise
                  * 2: 180°, device is reverse portrait
                  * 3: 270°, device is rotated 90 degree clockwise
-                 * @typedef ScrOrientation
-                 * @type {number}
+                 * @typedef {number} ScrOrientation
                  */
-                /** @type ScrOrientation */
+                /** @type {ScrOrientation} */
                 let _SCR_O = _win_svc_disp.getRotation();
                 let _is_scr_port = ~[0, 2].indexOf(_SCR_O);
+
                 // let _MAX = _win_svc_disp.maximumSizeDimension;
                 let _MAX = Math.max(_metrics.widthPixels, _metrics.heightPixels);
 
@@ -726,7 +562,7 @@ let ext = {
                     uH: Number(_disp.USABLE_HEIGHT),
                     /**
                      * Screen orientation
-                     * @type ScrOrientation
+                     * @type {ScrOrientation}
                      */
                     scrO: Number(_disp.screen_orientation),
                     /** Status bar height */
@@ -759,7 +595,7 @@ let ext = {
     },
     /**
      * Returns screen orientation state.
-     * @returns number - 1: auto-rotate; 2: portrait
+     * @returns {number} - 1: auto-rotate; 2: portrait
      */
     getRotation() {
         let System = android.provider.Settings.System;
@@ -784,40 +620,49 @@ let ext = {
             if (!forcible && this.isIgnoringBatteryOptimizations()) {
                 return true;
             }
-            app.startActivity(
-                new android.content.Intent()
-                    .setAction(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
-                    .setData(android.net.Uri.parse('package:' + (pkg_name || context.getPackageName())))
-            );
+            let _intent = new android.content.Intent()
+                .setAction(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                .setData(android.net.Uri.parse('package:' + (pkg_name || context.getPackageName())));
+            app.startActivity(_intent);
             return this.isIgnoringBatteryOptimizations();
         } catch (e) {
             console.warn(e.message);
             return false;
         }
     },
-    /** @returns {boolean} */
-    isCharging() {
-        let {IntentFilter, Intent} = android.content;
-        let {BatteryManager} = android.os;
-
-        let _i_filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
-        let _battery_status = context.registerReceiver(null, _i_filter);
-
-        let _status = _battery_status.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
-        return _status === BatteryManager.BATTERY_STATUS_CHARGING
-            || _status === BatteryManager.BATTERY_STATUS_FULL;
+    getBatteryStatusIntent() {
+        return context.registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+    },
+    /**
+     * @param {'HEALTH'|'ICON_SMALL'|'LEVEL'|'PLUGGED'|'PRESENT'|'SCALE'|'STATUS'|'TECHNOLOGY'|'TEMPERATURE'|'VOLTAGE'} extra_key
+     * @returns {number}
+     */
+    getBatteryStatus(extra_key) {
+        return this.getBatteryStatusIntent().getIntExtra(BatteryManager['EXTRA_' + extra_key], -1);
     },
     /** @returns {number} */
     getBatteryPercentage() {
-        let {IntentFilter, Intent} = android.content;
-        let {BatteryManager} = android.os;
+        let _i_battery_status = this.getBatteryStatusIntent();
 
-        let _i_filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
-        let _battery_status = context.registerReceiver(null, _i_filter);
-
-        let _level = _battery_status.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
-        let _scale = _battery_status.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
+        let _level = _i_battery_status.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+        let _scale = _i_battery_status.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
         return _level * 100 / _scale;
+    },
+    isCharging() {
+        return this.getBatteryStatus('STATUS') === BatteryManager.BATTERY_STATUS_CHARGING
+            || this.isCharged();
+    },
+    isCharged() {
+        return this.getBatteryStatus('STATUS') === BatteryManager.BATTERY_STATUS_FULL;
+    },
+    isAcPlugged() {
+        return this.getBatteryStatus('PLUGGED') === BatteryManager.BATTERY_PLUGGED_AC;
+    },
+    isUsbPlugged() {
+        return this.getBatteryStatus('PLUGGED') === BatteryManager.BATTERY_PLUGGED_USB;
+    },
+    isWirelessPlugged() {
+        return this.getBatteryStatus('PLUGGED') === BatteryManager.BATTERY_PLUGGED_WIRELESS;
     },
     /** @param {number} ratio */
     setScreenMetricsRatio(ratio) {
@@ -829,48 +674,1292 @@ let ext = {
      * @param {number} height
      */
     setScreenMetrics(width, height) {
-        runtime.setScreenMetrics(
-            width <= 0 ? W : width < 1 ? W * width : width,
-            height <= 0 ? H : height < 1 ? H * height : height
-        );
+        let _width = width <= 0 ? W : width < 1 ? W * width : width;
+        let _height = height <= 0 ? H : height < 1 ? H * height : height;
+        runtime.setScreenMetrics(_width, _height);
     },
     /** @returns {{width: number, height: number}} */
     getScreenMetricsRatio() {
-        return {
-            width: this.screen_metrics.rescaleX(W) / W,
-            height: this.screen_metrics.rescaleY(H) / H,
-        };
+        let _width = this.screen_metrics.rescaleX(W) / W;
+        let _height = this.screen_metrics.rescaleY(H) / H;
+        return {width: _width, height: _height};
     },
     /** @returns {{width: number, height: number}} */
     getScreenMetrics() {
-        return {
-            width: this.screen_metrics.rescaleX(W),
-            height: this.screen_metrics.rescaleY(H),
-        };
+        let _width = this.screen_metrics.rescaleX(W);
+        let _height = this.screen_metrics.rescaleY(H);
+        return {width: _width, height: _height};
     },
     resetScreenMetrics() {
         this.setScreenMetricsRatio(0);
     },
     saveCurrentScreenMetrics() {
-        this._screen_metrics_w = this.getScreenMetrics().width;
-        this._screen_metrics_h = this.getScreenMetrics().height;
+        this['_screen_metrics_w'] = this.getScreenMetrics().width;
+        this['_screen_metrics_h'] = this.getScreenMetrics().height;
     },
     restoreSavedScreenMetrics() {
-        let _w = this._screen_metrics_w;
-        let _h = this._screen_metrics_h;
+        let _w = this['_screen_metrics_w'];
+        let _h = this['_screen_metrics_h'];
         if (_w !== undefined && _h !== undefined) {
             this.setScreenMetrics(_w, _h);
-            delete this._screen_metrics_w;
-            delete this._screen_metrics_h;
+            delete this['_screen_metrics_w'];
+            delete this['_screen_metrics_h'];
         }
+    },
+    // TODO...
+    // saveCurrentAccelerometerRotation() {},
+    // restoreSavedAccelerometerRotation() {},
+    $bind() {
+        Object.assign(this.unlock, this._unlock);
+        delete this.$bind;
+        return this;
     },
 };
 
-if (typeof global.W !== 'number' || typeof global.H !== 'number') {
-    let _disp = ext.getDisplay();
-    global.W = _disp.WIDTH;
-    global.H = _disp.HEIGHT;
+if (!global._$_display_params_set) {
+    ext.getDisplay(global._$_display_params_set = true);
 }
 
-module.exports = ext;
+module.exports = Object.assign(ext, ext.$bind(), {
+    is_init_screen_on: global._$_is_init_scr_on = global._$_is_init_scr_on || ext.isScreenOn(),
+    is_init_unlocked: global._$_is_init_unlk = global._$_is_init_unlk || ext.isUnlocked(),
+});
 module.exports.load = () => global.devicex = ext;
+
+// tool function(s) //
+
+function _unlockGenerator() {
+    let $_und = x => typeof x === 'undefined';
+    let $_nul = x => x === null;
+    let $_func = x => typeof x === 'function';
+    let $_num = x => typeof x === 'number';
+    let $_str = x => typeof x === 'string';
+    let $_rex = x => x instanceof RegExp;
+    let $_arr = x => Array.isArray(x);
+    let $_flag = global.$$flag = global.$$flag || {};
+
+    let $_unlk = _unlkSetter();
+
+    let _sto = storagesx.create('unlock');
+    let _cfg = Object.assign({
+        /* default unlock configs which updated at Mar 1, 2021 */
+        unlock_code: null,
+        unlock_max_try_times: 20,
+        unlock_pattern_strategy: 'segmental',
+        unlock_pattern_size: 3,
+        unlock_pattern_swipe_time_segmental: 120,
+        unlock_pattern_swipe_time_solid: 200,
+        unlock_dismiss_layer_strategy: 'preferred',
+        unlock_dismiss_layer_bottom: 0.8,
+        unlock_dismiss_layer_top: 0.2,
+        unlock_dismiss_layer_swipe_time: 110,
+    }, _sto.get('config'));
+
+    let _code = require('./mod-pwmap').decrypt(_cfg.unlock_code) || '';
+    let _clean_code = _code.split(/\D+/).join('').split('');
+    let _max_try = _cfg.unlock_max_try_times;
+    let _pat_sz = _cfg.unlock_pattern_size;
+
+    let _intro = device.brand + ' ' + device.product + ' ' + device.release;
+
+    return Object.assign(_unlock, {
+        handlePContainer: () => $_unlk.p_container.handle(),
+        handleUnlockView: () => $_unlk.unlock_view.handle(),
+    });
+
+    // tool function(s) //
+
+    function _err(s) {
+        devicex.cancelOn();
+        messageAction('解锁失败', 4, 1, 0, -1);
+
+        ($_str(s) ? [s] : s).forEach(m => messageAction(m, 4, 0, 1));
+        messageAction(_intro, 4, 0, 1, 1);
+
+        captureErrScreen('unlock_failed', {log_level: 1});
+
+        if (devicex.is_init_screen_on) {
+            messageAction('自动关闭屏幕' + (keycode(26) ? '' : '失败'), 1, 0, 0, 1);
+        }
+
+        exit();
+        sleep(3.6e3);
+
+        // tool function(s) //
+
+        /**
+         * Save current screen capture as a file with a key name and a formatted timestamp
+         * @param {string} key_name - a key name as a clip of the file name
+         * @param {Object} [options]
+         * @param {number|string|null} [options.log_level]
+         * @param {number} [options.max_samples=10]
+         */
+        function captureErrScreen(key_name, options) {
+            if (typeof imagesx === 'object') {
+                imagesx.permit();
+            } else {
+                images.requestScreenCapture();
+            }
+
+            let _opt = options || {};
+            let _log_lv = _opt.log_level;
+            let _max_smp = _opt.max_samples || 10;
+
+            let _dir = files.getSdcardPath() + '/.local/pics/err/';
+            let _path = _dir + key_name + '_' + _getTimeStr() + '.png';
+
+            try {
+                files.createWithDirs(_path);
+                images.captureScreen(_path);
+                if (_log_lv !== null && _log_lv !== undefined) {
+                    messageAction('已存储屏幕截图文件:', _log_lv);
+                    messageAction(_path, _log_lv);
+                }
+                _removeRedundant();
+            } catch (e) {
+                messageAction(e.message, 3);
+            }
+
+            // tool function(s) //
+
+            function _getTimeStr() {
+                let _now = new Date();
+                let _pad = n => (n < 10 ? '0' : '') + n;
+                return _now.getFullYear() +
+                    _pad(_now.getMonth() + 1) +
+                    _pad(_now.getDate()) +
+                    _pad(_now.getHours()) +
+                    _pad(_now.getMinutes()) +
+                    _pad(_now.getSeconds());
+            }
+
+            function _removeRedundant() {
+                files.listDir(_dir, function (name) {
+                    return !!~name.indexOf(key_name);
+                }).sort((a, b) => {
+                    return a === b ? 0 : a > b ? -1 : 1;
+                }).slice(_max_smp).forEach((name) => {
+                    files.remove(_dir + name);
+                });
+            }
+        }
+    }
+
+    function _wakeUpIFN() {
+        if (!devicex.isScreenOn()) {
+            let _ctr = 0, _max = 4;
+            while (1) {
+                _debugAct('唤起设备', _ctr, _max);
+
+                devicex.wakeUp();
+
+                if (waitForAction(devicex.isScreenOn.bind(devicex), 1.5e3)) {
+                    device.keepScreenOn(2 * 60e3);
+                    break;
+                }
+                if (++_ctr > _max) {
+                    return _err('设备唤起失败');
+                }
+            }
+            debugInfo('设备唤起成功');
+        }
+    }
+
+    function _unlkSetter() {
+        let _as = 'com\\.android\\.systemui:id/';
+        let _ak = 'com\\.android\\.keyguard:id/';
+        let _sk = 'com\\.smartisanos\\.keyguard:id/';
+
+        return {
+            p_container: {
+                trigger() {
+                    _wakeUpIFN();
+                    _disturbance();
+
+                    return _checkStrategy() && [{
+                        desc: '通用',
+                        sel: idMatches(_as + 'preview_container'),
+                    }, {
+                        desc: 'EMUI',
+                        sel: idMatches(_as + '.*(keyguard|lock)_indication.*'),
+                    }, {
+                        desc: '锤子科技',
+                        sel: idMatches(_sk + 'keyguard_(content|.*view)'),
+                    }, {
+                        desc: 'MIUI',
+                        sel: idMatches(_ak + '(.*unlock_screen.*|.*notification_.*(container|view).*|dot_digital)'),
+                    }, {
+                        desc: 'MIUI10',
+                        sel: idMatches(_as + '(.*lock_screen_container|notification_(container|panel).*|keyguard_.*)'),
+                    }, {
+                        sel: $$sel.pickup(/上滑.{0,4}解锁/, 'selector'),
+                    }].some((smp) => {
+                        let {desc: _desc, sel: _sel} = smp;
+                        if (_sel instanceof com.stardust.autojs.core.accessibility.UiSelector) {
+                            if (_sel.exists()) {
+                                if (_desc) {
+                                    debugInfo('匹配到' + _desc + '解锁提示层控件');
+                                } else {
+                                    debugInfo('匹配到解锁提示层文字:');
+                                    debugInfo($$sel.pickup(_sel, 'txt'));
+                                }
+                                return (this.trigger = _sel.exists.bind(_sel))();
+                            }
+                        }
+                    });
+
+                    // tool function(s) //
+
+                    function _disturbance() {
+                        [{
+                            desc: 'QQ锁屏消息弹框控件',
+                            trigger() {
+                                return $$sel.pickup('按住录音')
+                                    || $$sel.pickup(idMatches(/com.tencent.mobileqq:id.+/));
+                            },
+                            handle() {
+                                clickAction($$sel.pickup('关闭'), 'w');
+                                let _cond = this.trigger.bind(this);
+                                waitForAction(_cond, 3e3)
+                                    ? debugInfo('关闭弹框控件成功')
+                                    : debugInfo('关闭弹框控件超时', 3);
+                            },
+                        }].forEach((o) => {
+                            if (o.trigger()) {
+                                debugInfo(['检测到提示层页面干扰:', o.desc]);
+                                o.handle();
+                            }
+                        });
+                    }
+
+                    function _checkStrategy() {
+                        let _stg = _cfg.unlock_dismiss_layer_strategy;
+                        if (_stg === 'preferred') {
+                            return true;
+                        }
+                        if (_stg === 'disabled') {
+                            if (!$_flag.unlock_dismiss_layer_disabled_hinted) {
+                                debugInfo('解锁页面提示层检测已禁用');
+                                $_flag.unlock_dismiss_layer_disabled_hinted = true;
+                            }
+                            return false;
+                        }
+                        if (_stg === 'deferred') {
+                            if (!$_flag.unlock_dismiss_layer_deferred) {
+                                debugInfo('解锁页面提示层检测延迟一次');
+                                $_flag.unlock_dismiss_layer_deferred = true;
+                                return false;
+                            }
+                            return true;
+                        }
+                        throw Error('Unknown unlock dismiss layer strategy: ' + _stg);
+                    }
+                },
+                dismiss() {
+                    let _this = this;
+                    let _btm = _cfg.unlock_dismiss_layer_bottom;
+                    let _top = _cfg.unlock_dismiss_layer_top;
+                    let _time_sto = _cfg.unlock_dismiss_layer_swipe_time;
+                    let _from_sto = !!_time_sto;
+                    let _pts = [_btm, _top];
+                    let _time = _time_sto; // copy
+                    /** @type {number[]} */
+                    let _reliable = _cfg.swipe_time_reliable || [];
+                    let _chances = 3;
+                    let _t_pool = _cfg.continuous_swipe || {};
+
+                    _init();
+                    _dismiss();
+                    _storage();
+
+                    return this.succ_fg;
+
+                    // tool function(s) //
+
+                    function _init() {
+                        if (~_reliable.indexOf(_time)) {
+                            _chances = Infinity;
+                            debugInfo('当前滑动时长参数可信');
+                        }
+
+                        if (!(_time in _t_pool)) {
+                            debugInfo('连续成功滑动累积器清零');
+                            _t_pool = {};
+                            _t_pool[_time] = 0;
+                        }
+                    }
+
+                    function _dismiss() {
+                        // noinspection JSCheckFunctionSignatures
+                        let _gesture_par = [_time].concat(_pts.map(y => [halfW, cY(y)]));
+
+                        let _max = 30, _ctr = 0;
+                        devicex.keepOn(3);
+                        while (!_lmt()) {
+                            _debugAct('消除解锁页面提示层', _ctr, _max);
+                            debugInfo('滑动时长: ' + _time + '毫秒');
+                            debugInfo('参数来源: ' + (_from_sto ? '本地存储' : '自动计算'));
+
+                            gesture.apply(null, _gesture_par);
+
+                            if (_this.succ()) {
+                                break;
+                            }
+
+                            debugInfo('单次消除解锁页面提示层超时');
+                            _ctr += 1;
+
+                            if (_from_sto) {
+                                if (--_chances < 0) {
+                                    _from_sto = false;
+                                    _time = _cfg.unlock_dismiss_layer_swipe_time;
+                                    debugInfo('放弃本地存储数据');
+                                    debugInfo('从默认值模块获取默认值: ' + _time);
+                                } else {
+                                    debugInfo('继续使用本地存储数据');
+                                }
+                            } else {
+                                // h110, 115, 120, 170, 220, 270, 320...
+                                let _increment = _time < 120 ? 5 : 50;
+                                _time += _increment;
+                                debugInfo('参数增量: ' + _increment);
+                            }
+                        }
+                        devicex.cancelOn();
+
+                        debugInfo('解锁页面提示层消除成功');
+                        _this.succ_fg = true;
+
+                        // tool function(s) //
+
+                        function _lmt() {
+                            let _is_lmt_reached = _ctr > _max;
+                            if (_is_lmt_reached) {
+                                _t_pool[_time] = 0;
+                                _sto.put('config', {continuous_swipe: _t_pool});
+                                _err('消除解锁页面提示层失败');
+                            }
+                            return _is_lmt_reached;
+                        }
+                    }
+
+                    function _storage() {
+                        if (_time !== _time_sto) {
+                            _sto.put('config', {unlock_dismiss_layer_swipe_time: _time});
+                            debugInfo('存储滑动时长参数: ' + _time);
+                        }
+
+                        if (!(_time in _t_pool)) {
+                            _t_pool[_time] = 0;
+                        }
+                        let _new_ctr = ++_t_pool[_time];
+                        _sto.put('config', {continuous_swipe: _t_pool});
+                        debugInfo('存储连续成功滑动次数: ' + _new_ctr);
+
+                        if (_new_ctr >= 6 && !~_reliable.indexOf(_time)) {
+                            debugInfo('当前滑动时长可信度已达标');
+                            debugInfo('存储可信滑动时长数据: ' + _time);
+                            _sto.put('config', {swipe_time_reliable: _reliable.concat(_time)});
+                        }
+                    }
+                },
+                handle() {
+                    return this.succ_fg || !this.trigger() || this.dismiss();
+                },
+                succ() {
+                    return waitForAction(function () {
+                        return !this.trigger();
+                    }.bind(this), 1.5e3) || $_unlk.unlock_view.trigger();
+                },
+            },
+            unlock_view: {
+                trigger() {
+                    let _this = this;
+
+                    if (!devicex.isScreenOn()) {
+                        return debugInfo(['跳过解锁控件检测', '>屏幕未亮起']);
+                    }
+                    return _pattern() || _password() || _pin() || _specials() || _unmatched();
+
+                    // tool function(s) //
+
+                    function _pattern() {
+                        return [{
+                            desc: '通用',
+                            sel: idMatches(_as + 'lockPatternView'),
+                        }, {
+                            desc: 'MIUI',
+                            sel: idMatches(_ak + 'lockPattern(View)?'),
+                        }].some((smp) => {
+                            if (smp.sel.exists()) {
+                                debugInfo('匹配到' + smp.desc + '图案解锁控件');
+                                return _trigger(smp.sel, _stg);
+                            }
+                        });
+
+                        // strategy(ies) //
+
+                        function _stg() {
+                            let _stg = _cfg.unlock_pattern_strategy;
+                            let _stg_map = {
+                                segmental: '叠加路径',
+                                solid: '连续路径',
+                            };
+                            let _key = 'unlock_pattern_swipe_time_' + _stg;
+                            let _time = _cfg[_key]; // swipe time
+
+                            let _from_sto = !!_time;
+                            let _chances = 3;
+                            let _ctr = 0;
+                            let _max = Math.ceil(_max_try * 0.6);
+                            while (!_lmt()) {
+                                _debugAct('图案密码解锁', _ctr, _max);
+                                debugInfo('滑动时长: ' + _time + '毫秒');
+                                debugInfo('滑动策略: ' + _stg_map[_stg]);
+
+                                let _pts = _getPts();
+                                let _act = {
+                                    segmental() {
+                                        let _par = [];
+                                        let _len = _pts.length;
+                                        for (let i = 0; i < _len - 1; i += 1) {
+                                            let _t1 = (_time - 50) * i;
+                                            let _t2 = _time;
+                                            let _pt1 = _pts[i];
+                                            let _pt2 = _pts[i + 1];
+                                            let _pts1 = [_pt1[0], _pt1[1]];
+                                            let _pts2 = [_pt2[0], _pt2[1]];
+                                            _par.push([_t1, _t2, _pts1, _pts2]);
+                                        }
+                                        gestures.apply(null, _par);
+                                    },
+                                    solid() {
+                                        gesture.apply(null, [_time].concat(_pts));
+                                    },
+                                };
+
+                                try {
+                                    _act[_stg]();
+                                } catch (e) {
+                                    messageAction(e.message, 4, 0, 0, -1);
+                                    messageAction(e.stack, 4, 0, 0, 2);
+                                }
+
+                                if (_this.succ()) {
+                                    break;
+                                }
+
+                                debugInfo('图案解锁未成功', 3);
+                                _ctr += 1;
+                                sleep(200);
+
+                                if (_from_sto) {
+                                    if (--_chances < 0) {
+                                        _from_sto = false;
+                                        _time = _cfg[_key];
+                                    }
+                                } else {
+                                    _time += 80;
+                                }
+                            }
+                            debugInfo('图案解锁成功');
+
+                            if (_time !== _cfg[_key]) {
+                                _cfg[_key] = _time;
+                                _sto.put('config', _cfg);
+                                debugInfo('存储滑动时长参数: ' + _time);
+                            }
+
+                            return true;
+
+                            // tool function(s) //
+
+                            function _lmt() {
+                                return _ctr > _max && _err('图案解锁方案失败');
+                            }
+
+                            function _getPts() {
+                                if ($_unlk.unlock_pattern_bounds) {
+                                    return $_unlk.unlock_pattern_bounds;
+                                }
+
+                                let _bnd = _stable(_this.sel);
+                                if (!_bnd) {
+                                    return _err(['图案解锁方案失败', '无法获取点阵布局']);
+                                }
+
+                                let _sz = _pat_sz;
+                                let _w = Math.trunc(_bnd.width() / _sz);
+                                let _h = Math.trunc(_bnd.height() / _sz);
+                                let _x1 = _bnd.left + Math.trunc(_w / 2);
+                                let _y1 = _bnd.top + Math.trunc(_h / 2);
+                                let _pts = [];
+                                for (let j = 1; j <= _sz; j += 1) {
+                                    for (let i = 1; i <= _sz; i += 1) {
+                                        _pts[(j - 1) * _sz + i] = {
+                                            x: _x1 + (i - 1) * _w,
+                                            y: _y1 + (j - 1) * _h,
+                                        };
+                                    }
+                                }
+
+                                if ($_str(_code)) {
+                                    _code = _code.match(/[^1-9]+/)
+                                        ? _code.split(/[^1-9]+/).join('|').split('|')
+                                        : _code.split('');
+                                }
+
+                                return $_unlk.unlock_pattern_bounds = _simpl(_code, _sz)
+                                    .filter(n => +n && _pts[n])
+                                    .map(n => [_pts[n].x, _pts[n].y]);
+
+                                // tool function(s) //
+
+                                function _stable(sel) {
+                                    let _res;
+                                    let _max = 8;
+                                    while (_max--) {
+                                        try {
+                                            _res = _stableBnd();
+                                            break;
+                                        } catch (e) {
+                                            sleep(120);
+                                        }
+                                    }
+                                    return _res;
+
+                                    // tool function(s) //
+
+                                    function _stableBnd() {
+                                        let _bnd = null;
+                                        let _l, _t, _r, _b;
+                                        let _raw = () => {
+                                            return $_und(_l) || $_und(_t)
+                                                || $_und(_r) || $_und(_b);
+                                        };
+                                        let _parse = (bnd) => {
+                                            let {left, top, right, bottom} = bnd;
+                                            return [left, top, right, bottom];
+                                        };
+                                        let _asg = (bnd) => {
+                                            [_l, _t, _r, _b] = _parse(bnd);
+                                        };
+                                        let _eql = (bnd) => {
+                                            let [l, t, r, b] = _parse(bnd);
+                                            return _l === l && _t === t
+                                                && _r === r && _b === b;
+                                        };
+                                        let _succ = () => {
+                                            let _nod = sel.findOnce();
+                                            if (!_nod) {
+                                                return;
+                                            }
+                                            _bnd = _nod.bounds();
+                                            if (_raw()) {
+                                                return _asg(_bnd);
+                                            }
+                                            if (_eql(_bnd)) {
+                                                return true;
+                                            }
+                                            _asg(_bnd);
+                                        };
+
+                                        waitForAction(_succ, 1.2e3, 120);
+
+                                        return _bnd;
+                                    }
+                                }
+
+                                function _simpl(code, sz) {
+                                    let _code = code.slice();
+                                    let _code_bak = [];
+                                    _standardize();
+
+                                    while (_code_bak.length !== _code.length) {
+                                        _code_bak = _code.slice();
+                                        _rmDupe();
+                                        _clean();
+                                    }
+
+                                    return _code;
+
+                                    // tool function(s) //
+
+                                    function _standardize() {
+                                        _code = _code.filter((n) => (
+                                            +n > 0 && +n <= sz * sz
+                                        ));
+                                    }
+
+                                    function _rmDupe() {
+                                        let _coord = _initCoord();
+                                        let _k0 = NaN;
+                                        let _len = _code.length;
+                                        for (let n = 0; n < _len - 1; n += 1) {
+                                            let _pt1 = _code[n];
+                                            let _pt2 = _code[n + 1];
+                                            let _k = _slope(_pt1, _pt2);
+                                            // explicitly distinguishes between -0 and +0
+                                            if (Object.is(_k0, _k)) {
+                                                delete _code[n];
+                                            } else {
+                                                _k0 = _k;
+                                            }
+                                        }
+
+                                        // tool function(s) //
+
+                                        function _initCoord() {
+                                            let _o = {};
+                                            let _num = 1;
+                                            for (let i = 1; i <= sz; i += 1) {
+                                                for (let j = 1; j <= sz; j += 1) {
+                                                    _o[_num++] = [i, j];
+                                                }
+                                            }
+                                            return _o;
+                                        }
+
+                                        // returns a slope ('斜率') of 2 pts
+                                        function _slope(n1, n2) {
+                                            let _p1 = _coord[n1];
+                                            let _p2 = _coord[n2];
+                                            if (!_p1 || !_p2) {
+                                                return NaN;
+                                            }
+                                            let [_x1, _y1] = _p1;
+                                            let [_x2, _y2] = _p2;
+                                            return (_y2 - _y1) / (_x2 - _x1);
+                                        }
+                                    }
+
+                                    function _clean() {
+                                        let _code_tmp = [];
+                                        let _cache = {};
+                                        _code.forEach((n) => {
+                                            if (!$_und(n) && !(n in _cache)) {
+                                                _cache[n] = true;
+                                                _code_tmp.push(n);
+                                            }
+                                        });
+                                        _code = _code_tmp;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    function _password() {
+                        return !_misjudge() && [{
+                            desc: '通用',
+                            selector: idMatches('.*passwordEntry'),
+                        }, {
+                            desc: 'MIUI',
+                            selector: idMatches(_ak + 'miui_mixed_password_input_field'),
+                        }, {
+                            desc: '锤子科技',
+                            selector: idMatches(_sk + 'passwordEntry(_.+)?').className('EditText'),
+                        }].some((smp) => {
+                            if (smp.selector.exists()) {
+                                debugInfo('匹配到' + smp.desc + '密码解锁控件');
+                                return _trigger(smp.selector, _stg);
+                            }
+                        });
+
+                        // strategy(ies) //
+
+                        function _stg() {
+                            let _pw = _code;
+                            let _has_root = (() => {
+                                try {
+                                    return shell('date', true).code === 0;
+                                } catch (e) {
+                                    return false;
+                                }
+                            })();
+                            if ($_arr(_pw)) {
+                                _pw = _pw.join('');
+                            }
+
+                            let _cfm_btn = (type) => (
+                                $$sel.pickup([/确.|完成|[Cc]onfirm|[Ee]nter/, {
+                                    className: 'Button', clickable: true,
+                                }], type)
+                            );
+
+                            let _ctr = 0;
+                            let _max = Math.ceil(_max_try * 0.6);
+                            while (!_lmt()) {
+                                _debugAct('密码解锁', _ctr, _max);
+                                _this.sel.setText(_pw);
+                                _keypadAssistIFN();
+
+                                let _w_cfm = _cfm_btn('widget');
+                                if (_w_cfm) {
+                                    debugInfo('点击"' + _cfm_btn('txt') + '"按钮');
+                                    try {
+                                        clickAction(_w_cfm, 'w');
+                                    } catch (e) {
+                                        debugInfo('按钮点击可能未成功', 3);
+                                    }
+                                }
+                                if (_this.succ(2)) {
+                                    break;
+                                }
+                                if (_has_root && !shell('input keyevent 66', true).code) {
+                                    debugInfo('使用Root权限模拟回车键');
+                                    sleep(480);
+                                    if (_this.succ()) {
+                                        break;
+                                    }
+                                }
+                                _ctr += 1;
+                                sleep(200);
+                            }
+                            debugInfo('密码解锁成功');
+
+                            return true;
+
+                            // tool function(s) //
+
+                            function _lmt() {
+                                return _ctr > _max && _err([
+                                    '密码解锁方案失败', '可能是密码错误', '或无法点击密码确认按钮',
+                                ]);
+                            }
+
+                            function _keypadAssistIFN() {
+                                /** @type {string} */
+                                let _pw_last = _pw[_pw.length - 1];
+                                /**
+                                 * @example
+                                 * let _smp_o = {
+                                 *     $_DEVICE: {
+                                 *         // string before keys
+                                 *         // number for the length of last pw string
+                                 *         prefix: 1,
+                                 *         // assistant keys coordination
+                                 *         // like: [[x1, y1], [x2, y2], ...],
+                                 *         keys: [[100, 200]],
+                                 *         // action after keys
+                                 *         // UiObject: desc('5') -- widget of a key
+                                 *         // Point: [x, y] -- point of a key
+                                 *         // String: '5' -- numpad key 5
+                                 *         // Number: 5 -- numpad key 5
+                                 *         suffix: null,
+                                 *     },
+                                 * };
+                                 * @type {Object.<string,{
+                                 *     prefix?: number|{toString:function():string},
+                                 *     keys?: string[]|Tuple2<number>,
+                                 *     keys_map?: Object.<number|string,Tuple2<number>>,
+                                 *     suffix?: UiSelector$|UiObject$|Tuple2<number>|number|string|RegExp,
+                                 * }>}
+                                 */
+                                let _smp_o = {
+                                    'HUAWEI VOG-AL00 9': {prefix: 1, keys: [[1008, 1706]]},
+                                    'HUAWEI ELE-AL00 10': {
+                                        keys: ['DEL'],
+                                        keys_map: (() => {
+                                            let y = [1188, 1350, 1511, 1674, 1835];
+                                            let x = [56, 163, 271, 378, 487, 595, 703, 810, 918, 1027];
+                                            let xs = [109.5, 217, 324.5, 432.5, 541, 649, 756.5, 864, 972.5];
+                                            let [y0, y1, y2, y3, y4] = y;
+                                            let [x0, x1, x2, x3, x4, x5, x6, x7, x8, x9] = x;
+                                            let [xs0, xs1, xs2, xs3, xs4, xs5, xs6, xs7, xs8] = xs;
+                                            return {
+                                                1: [x0, y0],
+                                                2: [x1, y0],
+                                                3: [x2, y0],
+                                                4: [x3, y0],
+                                                5: [x4, y0],
+                                                6: [x5, y0],
+                                                7: [x6, y0],
+                                                8: [x7, y0],
+                                                9: [x8, y0],
+                                                0: [x9, y0],
+                                                q: [x0, y1],
+                                                w: [x1, y1],
+                                                e: [x2, y1],
+                                                r: [x3, y1],
+                                                t: [x4, y1],
+                                                y: [x5, y1],
+                                                u: [x6, y1],
+                                                i: [x7, y1],
+                                                o: [x8, y1],
+                                                p: [x9, y1],
+                                                a: [xs0, y2],
+                                                s: [xs1, y2],
+                                                d: [xs2, y2],
+                                                f: [xs3, y2],
+                                                g: [xs4, y2],
+                                                h: [xs5, y2],
+                                                j: [xs6, y2],
+                                                k: [xs7, y2],
+                                                l: [xs8, y2],
+                                                z: [xs1, y3],
+                                                x: [xs2, y3],
+                                                c: [xs3, y3],
+                                                v: [xs4, y3],
+                                                b: [xs5, y3],
+                                                n: [xs6, y3],
+                                                m: [xs7, y3],
+                                                ',': [xs1, y4],
+                                                ' ': [xs4, y4],
+                                                '.': [xs7, y4],
+                                                del: [x9, y3],
+                                            };
+                                        })(),
+                                        get suffix() {
+                                            return this.keys_map[_pw_last];
+                                        },
+                                    },
+                                };
+                                if (!(_intro in _smp_o)) {
+                                    return;
+                                }
+                                debugInfo('此设备机型需要按键辅助');
+
+                                let _smp = _smp_o[_intro];
+                                let _coords = _smp.keys;
+                                let _k_map = _smp.keys_map;
+                                let _pref = _smp.prefix;
+                                let _suff = _smp.suffix;
+                                if (!$_und(_pref) && !$_nul(_pref)) {
+                                    let _s = '';
+                                    if ($_num(_pref)) {
+                                        _s += _pw_last.repeat(_pref);
+                                    } else {
+                                        _s = _pref.toString();
+                                    }
+                                    _this.sel.setText(_pw + _s);
+                                    debugInfo('辅助按键前置填充: ' + _s.length + '项');
+                                }
+
+                                _coords.forEach((c, i) => {
+                                    i || sleep(300);
+                                    clickAction($_str(c) ? _k_map[c] : c);
+                                    sleep(300);
+                                });
+
+                                if (_suff) {
+                                    if (_suff instanceof com.stardust.automator.UiObject) {
+                                        debugInfo('辅助按键后置填充类型: 控件');
+                                        return clickAction(_suff);
+                                    }
+                                    if (_suff instanceof com.stardust.autojs.core.accessibility.UiSelector) {
+                                        debugInfo('辅助按键后置填充类型: 选择器');
+                                        return clickAction(_suff);
+                                    }
+                                    if ($_arr(_suff)) {
+                                        debugInfo('辅助按键后置填充类型: 坐标');
+                                        return clickAction(_suff);
+                                    }
+                                    if ($_num(_suff) || $_str(_suff) || $_rex(_suff)) {
+                                        debugInfo('辅助按键后置填充类型: 文本');
+                                        return clickAction($$sel.pickup('(key.?)?' + _suff));
+                                    }
+                                    return _err(['密码解锁失败', '无法判断末位字符类型']);
+                                }
+                            }
+                        }
+
+                        function _misjudge() {
+                            let _triStr = sel => $_str(sel) && id(sel).exists();
+                            let _triRex = sel => $_rex(sel) && idMatches(sel).exists();
+
+                            return [
+                                'com.android.systemui:id/lockPattern',
+                            ].some((sel) => {
+                                if (_triStr(sel) || _triRex(sel)) {
+                                    _this.misjudge = sel;
+                                    debugInfo(['匹配到误判干扰', '转移至PIN解锁方案']);
+                                    return true;
+                                }
+                            });
+                        }
+                    }
+
+                    function _pin() {
+                        return [{
+                            desc: '通用',
+                            sel: idMatches(_as + 'pinEntry'),
+                        }, {
+                            desc: 'MIUI',
+                            sel: idMatches(_ak + 'numeric_inputview'),
+                        }, {
+                            desc: 'EMUI10',
+                            sel: idMatches(_as + 'fixedPinEntry'),
+                        }, {
+                            desc: 'EMUI',
+                            sel: descMatches('[Pp][Ii][Nn] ?(码区域|area)'),
+                        }, {
+                            desc: '魅族',
+                            sel: idMatches(_as + 'lockPattern'),
+                        }, {
+                            desc: 'OPPO',
+                            sel: idMatches(_as + '(coloros.)?keyguard.pin.(six.)?view'),
+                        }, {
+                            desc: 'OPPO',
+                            sel: idMatches(_as + 'keyguard_security_container'),
+                        }, {
+                            desc: 'VIVO',
+                            sel: idMatches(_as + 'vivo_pin_view'),
+                        }].some((smp) => {
+                            let _desc = smp.desc;
+                            if (smp.sel.exists()) {
+                                if (_desc.match(/\w$/)) {
+                                    _desc += '/';
+                                }
+                                debugInfo('匹配到' + _desc + 'PIN解锁控件');
+                                return _trigger(smp.sel, _stg);
+                            }
+                        });
+
+                        // tool function(s) //
+
+                        function _stg() {
+                            let _pw = _clean_code;
+
+                            let _ctr = 0;
+                            let _max = Math.ceil(_max_try * 0.6);
+                            while (!_lmt()) {
+                                _debugAct('PIN解锁', _ctr, _max);
+
+                                $_func(_this.unlockPin) ? _this.unlockPin() : _unlockPin();
+
+                                if (_this.succ() || _clickKeyEnter()) {
+                                    break;
+                                }
+                                _ctr += 1;
+                                sleep(200);
+                            }
+                            debugInfo('PIN解锁成功');
+                            return true;
+
+                            // tool function(s) //
+
+                            function _lmt() {
+                                return _ctr > _max && _err(['PIN解锁方案失败', '尝试次数已达上限']);
+                            }
+
+                            function _clickKeyEnter() {
+                                let _sltr = idMatches(_as + 'key_enter');
+                                if (_sltr.exists()) {
+                                    debugInfo('点击"key_enter"控件');
+                                    clickAction(_sltr, 'w');
+                                    return _this.succ();
+                                }
+                            }
+
+                            function _unlockPin() {
+                                let _samples = [{
+                                    desc: '通用PIN/KEY',
+                                    test() {
+                                        let _sel = n => idMatches(_as + 'key' + n);
+                                        if (_testNums(_sel)) {
+                                            _dbg.call(this);
+                                            return this.sel = _sel;
+                                        }
+                                    },
+                                    click() {
+                                        let _sel = this.sel;
+                                        return _trig(() => _pw.forEach(n => clickAction(_sel(n), 'w')));
+                                    },
+                                }, {
+                                    desc: '通用PIN容器',
+                                    test() {
+                                        let _w = idMatches(_as + 'container').findOnce();
+                                        if (_w) {
+                                            _dbg.call(this);
+                                            return this.widget = _w;
+                                        }
+                                    },
+                                    click() {
+                                        /** @type {UiObject$} */
+                                        let _w = this.widget;
+                                        let _bnd = _w.bounds();
+                                        let _len = _w.childCount();
+                                        let _b = _w.child(_len - 1).bounds().bottom;
+                                        let _t = _w.child(_len - 4).bounds().top;
+                                        let _rect = [_bnd.left, _t, _bnd.right, _b];
+                                        return _trig(() => _clickVirtualKeypad(_pw, _rect));
+                                    },
+                                }, {
+                                    desc: 'MIUI/PIN',
+                                    test() {
+                                        let _sel = n => idMatches(_ak + 'numeric_inputview').text(n);
+                                        if (_testNums(_sel)) {
+                                            _dbg.call(this);
+                                            return this.sel = _sel;
+                                        }
+                                    },
+                                    click() {
+                                        let _sel = this.sel;
+                                        return _trig(() => _pw.forEach(n => clickAction(_sel(n), 'w')));
+                                    },
+                                }, {
+                                    desc: '内容描述PIN',
+                                    test() {
+                                        let _sel = n => desc(n);
+                                        if (_testNums(_sel)) {
+                                            _dbg.call(this);
+                                            return this.sel = _sel;
+                                        }
+                                    },
+                                    click() {
+                                        /** @type {function(s:string):UiSelector$} */
+                                        let _this_sel = this.sel;
+                                        let _sel = (num) => {
+                                            let _w = _this_sel(num).findOnce();
+                                            if (num > 0 || _w) {
+                                                return _w;
+                                            }
+                                            // center coordination
+                                            let _ctc = (num) => {
+                                                let _bnd = _sel(num).bounds();
+                                                return {x: _bnd.centerX(), y: _bnd.centerY()};
+                                            };
+                                            // point of button '0'
+                                            let _pt = n => _ctc(8)[n] + _ctc(5)[n] - _ctc(2)[n];
+                                            return [_pt('x'), _pt('y')];
+                                        };
+
+                                        return _trig(() => _pw.forEach(n => clickAction(_sel(n), 'w')));
+                                    },
+                                }, {
+                                    desc: '标记匹配PIN',
+                                    test() {
+                                        if (_this.misjudge) {
+                                            _dbg.call(this);
+                                            debugInfo('>已匹配的字符串化标记:');
+                                            debugInfo('>' + _this.misjudge);
+                                            return true;
+                                        }
+                                    },
+                                    click() {
+                                        return _trig(() => {
+                                            let _w = idMatches(_this.misjudge).findOnce();
+                                            if (_w) {
+                                                _clickVirtualKeypad(_pw, _w.bounds());
+                                            }
+                                        });
+                                    },
+                                }];
+                                let _max = 8;
+                                while (_max--) {
+                                    for (let o of _samples) {
+                                        if (o.test()) {
+                                            return o.click();
+                                        }
+                                    }
+                                }
+                                return _err('预置的PIN解锁方案全部无效');
+
+                                // tool function(s) //
+
+                                function _dbg() {
+                                    debugInfo('匹配到' + this.desc + '解锁控件');
+                                }
+
+                                function _trig(f) {
+                                    return (_this.unlockPin = f.bind(null))();
+                                }
+
+                                function _testNums(f) {
+                                    // there is no need to check '0'
+                                    // as a special treatment will be
+                                    // given in getNumsBySingleDesc()
+                                    let _ctr = 0;
+                                    for (let n of '123456789') {
+                                        _ctr += Number(f(n).exists());
+                                    }
+                                    return _ctr > 6;
+                                }
+                            }
+                        }
+                    }
+
+                    function _specials() {
+                        return [{
+                            desc: '"Gxzw"屏下指纹设备',
+                            sel: idMatches(/.*[Gg][Xx][Zz][Ww].*/),
+                            pw_rect: [0.0875, 0.47, 0.9125, 0.788], // [cX, cY, cX, cY]
+                        }].some((smp) => {
+                            if (smp.sel.exists()) {
+                                debugInfo(['匹配到特殊设备解锁方案:', smp.desc]);
+                                return _trigger(smp.sel, _stg.bind(null, smp.pw_rect));
+                            }
+                        });
+
+                        // tool function(s) //
+
+                        function _stg(pw_rect) {
+                            let _rect = pw_rect.map((n, i) => i % 2 ? cY(n) : cX(n));
+                            let [_l, _t, _r, _b] = _rect;
+                            debugInfo('已构建密码区域边界:');
+                            debugInfo('Rect(' + _l + ', ' + _t + ' - ' + _r + ', ' + _b + ')');
+
+                            _clickVirtualKeypad(_clean_code, _rect);
+
+                            if (_this.succ()) {
+                                return true;
+                            }
+                            _err('尝试特殊解锁方案失败');
+                        }
+                    }
+
+                    function _unmatched() {
+                        devicex.isUnlocked() || debugInfo('未匹配到可用的解锁控件');
+                    }
+
+                    function _trigger(sel, stg) {
+                        _this.sel = sel;
+                        _this.stg = stg;
+                        return (_this.trigger = sel.exists.bind(sel))();
+                    }
+
+                    function _clickVirtualKeypad(pw, rect) {
+                        let _r_l, _r_t, _r_w, _r_h;
+
+                        if ($_arr(rect)) {
+                            let [_l, _t, _r, _b] = rect;
+                            _r_l = _l;
+                            _r_t = _t;
+                            _r_w = _r - _l;
+                            _r_h = _b - _t;
+                        } else {
+                            _r_l = rect.left;
+                            _r_t = rect.top;
+                            _r_w = rect.width();
+                            _r_h = rect.height();
+                        }
+
+                        let _w = Math.trunc(_r_w / 3);
+                        let _h = Math.trunc(_r_h / 4);
+                        let _x1 = _r_l + Math.trunc(_w / 2);
+                        let _y1 = _r_t + Math.trunc(_h / 2);
+
+                        let _keypads = [];
+                        for (let j = 1; j <= 4; j += 1) {
+                            for (let i = 1; i <= 3; i += 1) {
+                                _keypads[(j - 1) * 3 + i] = {
+                                    x: _x1 + _w * (i - 1),
+                                    y: _y1 + _h * (j - 1),
+                                };
+                            }
+                        }
+                        debugInfo('已构建拨号盘数字坐标');
+                        pw.forEach(v => clickAction(_keypads[Number(v) || 11]));
+                    }
+                },
+                dismiss() {
+                    if (!_code) {
+                        return _err('密码为空');
+                    }
+                    if (!$_func(this.stg)) {
+                        return _err('没有可用的解锁策略');
+                    }
+                    devicex.keepOn(5);
+                    this.stg();
+                    devicex.cancelOn();
+                },
+                handle() {
+                    return this.trigger() && this.dismiss();
+                },
+                succ(t) {
+                    let _t = t || 1920;
+                    let _err_shown_fg;
+                    let _cond = () => {
+                        if (_correct()) {
+                            _chkTryAgain();
+                            _chkOKBtn();
+                            return devicex.isUnlocked();
+                        }
+                        _err_shown_fg = true;
+                    };
+
+                    return waitForAction(_cond, _t, 240);
+
+                    // tool function(s) //
+
+                    function _correct() {
+                        let _w_bad = $$sel.pickup(/.*(重试|不正确|错误|[Ii]ncorrect|[Rr]etry|[Ww]rong).*/);
+                        if (_w_bad) {
+                            return _err_shown_fg || debugInfo($$sel.pickup(_w_bad, 'txt'), 3);
+                        }
+                        if (idMatches(new RegExp(_ak + 'phone_locked_textview')).exists()) {
+                            return _err_shown_fg || debugInfo('密码错误', 3);
+                        }
+                        return true;
+                    }
+
+                    function _chkTryAgain() {
+                        let _chk = () => $$sel.pickup(/.*([Tt]ry again in.+|\d+.*后重试).*/);
+                        if (_chk()) {
+                            debugInfo('正在等待重试超时');
+                            waitForAction(() => !_chk(), 65e3, 500);
+                        }
+                    }
+
+                    function _chkOKBtn() {
+                        let _w_ok = $$sel.pickup(/OK|确([认定])|好的?/);
+                        if (_w_ok) {
+                            debugInfo('点击"' + $$sel.pickup(_w_ok, 'txt') + '"按钮');
+                            clickAction(_w_ok, 'w');
+                            sleep(1e3);
+                        }
+                    }
+                },
+            },
+        };
+    }
+
+    function _unlock(forcibly_debug) {
+        let _dash = '__split_line_dash__';
+        let _debug_notice = forcibly_debug || forcibly_debug === false;
+
+        _sto.put('config', _cfg);
+
+        _debugPrologue();
+        _wakeUpIFN();
+
+        while (!devicex.isUnlocked() && !_lmtRch()) {
+            $_unlk.p_container.handle();
+            $_unlk.unlock_view.handle();
+        }
+
+        _debugEpilogue();
+
+        return true;
+
+        // tool function(s) //
+
+        function _debugPrologue() {
+            if (_debug_notice) {
+                $_flag.debug_info_avail_bak = $_flag.debug_info_avail;
+                $_flag.debug_info_avail = !!forcibly_debug;
+            }
+            debugInfo([_dash, '尝试自动解锁', _dash]);
+        }
+
+        function _debugEpilogue() {
+            debugInfo([_dash, '自动解锁完毕', _dash]);
+            if (_debug_notice) {
+                $_flag.debug_info_avail = $_flag.debug_info_avail_bak;
+                delete $_flag.debug_info_avail_bak;
+            }
+        }
+
+        function _lmtRch() {
+            let _max = _max_try;
+            let _ctr = $_und(_unlock.ctr) ? _unlock.ctr = 0 : ++_unlock.ctr;
+            _ctr > _max ? _err('解锁尝试次数已达上限') : _debugAct('解锁', _ctr, _max);
+            sleep(240);
+        }
+    }
+
+    function _debugAct(act_str, ctr, max) {
+        debugInfo(ctr ? '重试' + act_str + ' (' + ctr + '/' + max + ')' : '尝试' + act_str);
+    }
+}

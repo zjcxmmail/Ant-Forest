@@ -1,11 +1,12 @@
 require('../modules/ext-global').load();
 require('../modules/ext-dialogs').load();
-require('../modules/ext-device').load().getDisplay(true);
+require('../modules/ext-device').load();
+require('../modules/ext-storages').load();
 
 let [_dx, _dy] = [cX(0.35), cY(0.45)];
 let _rect = [cX(0.35), cY(0.45), cX(0.65), cY(0.55)];
 let [_l, _t, _r, _b] = _rect;
-let $_sto = require('../modules/mod-storage').create('af_cfg');
+let $_sto = storagesx.create('af_cfg');
 let _o = {
     rect: _rect,
     af_rect: $_sto.get('config', {}).eballs_recognition_region
@@ -38,9 +39,8 @@ setInterval(_setRect, 100);
 // tool function(s) //
 
 function _setRect() {
-    _rect_canvas = new (Function.prototype.bind.apply(
-        android.graphics.Rect, [null].concat(_sess_rect)
-    ));
+    let _args = [null].concat(_sess_rect);
+    _rect_canvas = new (Function.prototype.bind.apply(android.graphics.Rect, _args));
 }
 
 function _setHint() {
@@ -63,8 +63,7 @@ function _setWinCtrl() {
             <vertical w="*" margin="10" gravity="center">
                 <text id="hint" gravity="center">按 '帮助' 按钮获得详细支持</text>
             </vertical>
-        </vertical>
-    );
+        </vertical>);
     _win_ctrl.setSize(-1, -1);
     _win_ctrl['btn_cancel'].on('click', () => {
         typeof _o.onCancel === 'function' && _o.onCancel(_sess_rect);
@@ -166,10 +165,9 @@ function _setWinCanvas() {
     _paint.setColor(colors.GREEN);
 
     _win_canvas.canvas.on('draw', (canvas) => {
-        canvas.drawColor(
-            android.graphics.Color.TRANSPARENT,
-            android.graphics.PorterDuff.Mode.CLEAR
-        );
+        let _color = android.graphics.Color.TRANSPARENT;
+        let _mode = android.graphics.PorterDuff.Mode.CLEAR;
+        canvas.drawColor(_color, _mode);
         canvas.drawRect(_rect_canvas, _paint);
     });
 }
@@ -203,31 +201,29 @@ function _setSeekbar(opt, idx) {
                     layout_gravity="center"
                 />
             </horizontal>
-        </vertical>
-    );
+        </vertical>);
     new_view['_seekbar'].setMax(max - min);
     new_view['_seekbar'].setProgress(init - min);
 
     let update = (src) => {
-        return new_view._text.setText(
-            (title ? title + ': ' : '') + src.toString() +
-            (unit ? ' ' + unit : '')
-        );
+        let _s = (title ? title + ': ' : '') + src.toString() + (unit ? ' ' + unit : '');
+        return new_view._text.setText(_s);
     };
 
     update(init);
-    new_view['_seekbar'].setOnSeekBarChangeListener(
-        new android.widget.SeekBar.OnSeekBarChangeListener({
-            onProgressChanged(seek_bar, progress) {
-                let result = progress + min;
-                update(result);
-                _sess_rect[idx] = result;
-                _setHint();
-            },
-            onStartTrackingTouch: () => void 0,
-            onStopTrackingTouch: () => void 0,
-        })
-    );
+
+    let _listener = new android.widget.SeekBar.OnSeekBarChangeListener({
+        onProgressChanged(seek_bar, progress) {
+            let result = progress + min;
+            update(result);
+            _sess_rect[idx] = result;
+            _setHint();
+        },
+        onStartTrackingTouch: () => void 0,
+        onStopTrackingTouch: () => void 0,
+    });
+    new_view['_seekbar'].setOnSeekBarChangeListener(_listener);
+
     return new_view;
 }
 

@@ -1,7 +1,8 @@
 require('../modules/ext-images').load();
 require('../modules/ext-global').load();
-require('../modules/ext-device').load().getDisplay(true);
+require('../modules/ext-device').load();
 require('../modules/ext-dialogs').load();
+require('../modules/ext-storages').load();
 
 dialogsx.builds([
     '能量球识别测试工具',
@@ -14,7 +15,7 @@ dialogsx.builds([
     '崩溃后会丢失当前的控制台日志\n' +
     '且可能需要重新开启无障碍服务\n' +
     '因此请勿频繁使用此测试工具',
-    0, 'Q', '开始', 1
+    0, 'Q', '开始', 1,
 ]).on('negative', d => d.dismiss()).on('positive', (d) => {
     toast('请手动进入任意一个森林页面');
     threads.start(_);
@@ -25,9 +26,8 @@ function _() {
     let $_cfg = {};
     let $_sto = {};
     let _wins = [];
-    let _mod_sto = require('../modules/mod-storage');
     Object.assign($_sto, {
-        cfg: _mod_sto.create('af_cfg'),
+        cfg: storagesx.create('af_cfg'),
         def: require('../modules/mod-default-config'),
     });
 

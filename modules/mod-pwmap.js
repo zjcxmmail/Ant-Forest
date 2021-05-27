@@ -17,7 +17,7 @@
  * // generate or regenerate 'PWMAP' file
  * // use with caution
  * pwmap.generate();
- * @since Nov 5, 2020
+ * @since May 14, 2021
  * @author SuperMonster003 {@link https://github.com/SuperMonster003}
  */
 
@@ -29,6 +29,8 @@ let _cfg = {
     separator: '_.|._',
     encrypt_power: 2,
 };
+
+require('./ext-global').load('String');
 
 module.exports = {
     encrypt: _encrypt,
@@ -52,11 +54,15 @@ function _encrypt(input) {
     }
     _thd_mon.interrupt();
 
-    let _res = '[' + _encrypted.map((s) => '"' + s + '"') + ']';
+    let _res = _encrypted.map((s) => {
+        return s.toString().surround('"');
+    }).toString().surround('[]');
+
     if (!arguments.length) {
         global['setClip'](_res);
         toast('密文数组已复制剪切板');
     }
+
     return _res;
 
     // tool function(s) //
@@ -154,11 +160,11 @@ function _decrypt(input) {
 
 function _generate() {
     if (files.exists(_path)) {
-        confirm(
-            '密文文件已存在\n继续操作将覆盖已有文件\n' +
-            '新的密文文件生成后\n涉及密文的全部相关代码\n均需重新设置才能解密\n' +
-            '确定要继续吗?'
-        ) || exit();
+        confirm([
+            '密文文件已存在', '继续操作将覆盖已有文件',
+            '新的密文文件生成后', '涉及密文的全部相关代码',
+            '均需重新设置才能解密', '确定要继续吗?',
+        ].join('\n')) || exit();
     }
 
     files.createWithDirs(_path);

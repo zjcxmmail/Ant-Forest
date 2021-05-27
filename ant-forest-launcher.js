@@ -1,7 +1,7 @@
 /**
  * Alipay ant forest intelligent collection script launcher
- * @since Mar 16, 2021
- * @version 2.0.5
+ * @since May 19, 2021
+ * @version 2.1.2
  * @author SuperMonster003
  * @see https://github.com/SuperMonster003/Ant-Forest
  */
@@ -13,16 +13,18 @@ let $$init = {
         try {
             return require('./modules/ext-app');
         } catch (e) {
-            console.error('ext-app模块不存在');
-            console.error('请检查项目目录结构');
-            throw e;
+            if (!files.exists('./modules/ext-app.js')) {
+                console.error('ext-app模块不存在');
+                console.error('请检查项目目录结构');
+            }
+            throw Error(e);
         }
     },
     check() {
         this.appx().load();
         appx.checkModules([
-            'mod-treasury-vault', 'mod-database', 'mod-monster-func',
-            'mod-default-config', 'mod-pwmap', 'mod-storage', 'mod-unlock',
+            'mod-default-config', 'mod-pwmap', 'mod-monster-func',
+            'mod-treasury-vault', 'mod-database', 'ext-storages',
             'ext-engines', 'ext-images', 'ext-timers', 'ext-dialogs',
             'ext-threads', 'ext-global', 'ext-device', 'ext-ui', 'ext-app',
         ], {is_load: true});
@@ -60,10 +62,9 @@ let $$init = {
         function setGlobalFunctions() {
             require('./modules/mod-monster-func').load([
                 'messageAction', 'debugInfo', 'timeRecorder', 'clickActionsPipeline',
-                'getSelector', 'equalObjects', 'waitForAndClickAction', 'stabilizer',
                 'clickAction', 'swipeAndShow', 'setIntervalBySetTimeout', 'keycode',
-                'waitForAction', 'baiduOcr', 'observeToastMessage', 'showSplitLine',
-                'classof', 'surroundWith',
+                'waitForAction', 'observeToastMessage', 'showSplitLine',
+                'equalObjects', 'waitForAndClickAction', 'stabilizer',
             ]);
             global.messageAct = function () {
                 return $$flag.msg_details
@@ -76,23 +77,23 @@ let $$init = {
         }
 
         function setGlobalObjects() {
-            global.$$unlk = require('./modules/mod-unlock');
             global.$$flag = {
                 autojs_has_root: appx.hasRoot(),
                 autojs_has_secure: appx.hasSecure(),
             };
+
             global.$$sto = {
-                af: require('./modules/mod-storage').create('af'),
-                af_next: require('./modules/mod-storage').create('af_auto'),
-                af_ins: require('./modules/mod-storage').create('af_ins'),
-                af_cfg: require('./modules/mod-storage').create('af_cfg'),
-                af_blist: require('./modules/mod-storage').create('af_blist'),
-                af_flist: require('./modules/mod-storage').create('af_flist'),
+                af: storagesx.create('af'),
+                af_next: storagesx.create('af_auto'),
+                af_ins: storagesx.create('af_ins'),
+                af_cfg: storagesx.create('af_cfg'),
+                af_blist: storagesx.create('af_blist'),
+                af_flist: storagesx.create('af_flist'),
             };
+
             global.$$cfg = Object.assign({},
                 require('./modules/mod-default-config').af,
-                $$sto.af_cfg.get('config') /* do not append a trailing comma here */
-            );
+                $$sto.af_cfg.get('config'));
 
             global.$$db = require('./modules/mod-database').create([
                 {name: 'name', not_null: true},
@@ -134,7 +135,7 @@ let $$init = {
             $$flag.show_e_result = _msg_sw && $$cfg.result_showing_switch;
 
             let _e_argv = this.e_argv = enginesx.execArgvJs();
-            if (Object.size(_e_argv, {exclude: ['intent']})) {
+            if (Object.size(_e_argv, {exclude: 'intent'}) > 0) {
                 if (!$$und(_e_argv.debug_info_flag)) {
                     $$flag.debug_info_avail = !!_e_argv.debug_info_flag;
                 }
@@ -166,7 +167,7 @@ let $$init = {
                     $$app.my_engine = _my_engine;
                     $$app.my_engine_id = _my_engine.id;
                     $$app.my_engine_argv = _e_argv;
-                    $$app.init_scr_on = _e_argv.init_scr_on || $$unlk.is_init_screen_on;
+                    $$app.init_scr_on = _e_argv.init_scr_on || devicex.is_init_screen_on;
                     $$app.init_fg_pkg = _e_argv.init_fg_pkg || currentPackage();
                     $$app.cwd = _my_engine.cwd(); // `files.cwd()` also fine
                     $$app.cwp = _my_engine.source.toString().match(/\[remote]/)
@@ -214,7 +215,7 @@ let $$init = {
                     };
                     $$app.setAutoTask = (task_func, ts, type, keep_old) => {
                         if (typeof task_func !== 'function') {
-                            throw TypeError('setAutoTask() invoked with non-function param');
+                            throw TypeError('setAutoTask() invoked with non-function argument');
                         }
 
                         let _old_id = $$app.getAutoTask().task_id;
@@ -239,7 +240,7 @@ let $$init = {
                     return this;
                 },
                 setParams() {
-                    $$app.task_name = surroundWith(_unEsc('8682868168EE6797'));
+                    $$app.task_name = _unEsc('8682868168EE6797').surround('"');
                     $$app.rl_title = _unEsc('2615FE0F0020597D53CB6392884C699C');
                     $$app.developer = _unTap('434535154232343343441542000003');
                     $$app.local_pics_path = _getLocalPicsPath();
@@ -247,39 +248,46 @@ let $$init = {
                     $$app.has_root = $$flag.autojs_has_root;
                     $$app.intent = {
                         home: {
-                            data: $$cvt.url('alipays://platformapi/startapp', {
-                                saId: 20000067,
-                                url: 'https://60000002.h5app.alipay.com/www/home.html',
-                                __webview_options__: {
-                                    transparentTitle: 'auto', // other option(s): 'none'
-                                    backgroundColor: '-1',
-                                    appClearTop: true, // alias: 'YES'
-                                    startMultApp: true,
-                                    enableCubeView: false, // alias: 'NO'
-                                    enableScrollBar: false,
+                            url: {
+                                src: 'alipays://platformapi/startapp',
+                                query: {
+                                    saId: 20000067,
+                                    url: 'https://60000002.h5app.alipay.com/www/home.html',
+                                    __webview_options__: {
+                                        transparentTitle: 'auto', // other option(s): 'none'
+                                        backgroundColor: '-1',
+                                        appClearTop: true, // alias: 'YES'
+                                        startMultApp: true,
+                                        enableCubeView: false, // alias: 'NO'
+                                        enableScrollBar: false,
+                                    },
                                 },
-                            }),
+                            },
                             packageName: $$app.alipay_pkg,
                         },
                         rl: {
-                            data: $$cvt.url('alipays://platformapi/startapp', {
-                                saId: 20000067,
-                                url: 'https://60000002.h5app.alipay.com/www/listRank.html',
-                                __webview_options__: {
-                                    transparentTitle: 'none', // other option(s): 'auto'
-                                    backgroundColor: '-1',
-                                    canPullDown: false, // alias: 'NO'
-                                    gestureBack: true, // alias: 'YES'
-                                    backBehavior: 'back', // other option(s): 'pop'
-                                    enableCubeView: false,
-                                    appClearTop: true,
-                                    startMultApp: true,
-                                    showOptionMenu: true,
-                                    enableScrollBar: false,
-                                    closeCurrentWindow: true,
-                                    defaultTitle: $$app.rl_title,
+                            url: {
+                                src: 'alipays://platformapi/startapp',
+                                query: {
+                                    saId: 20000067,
+                                    url: 'https://60000002.h5app.alipay.com/www/listRank.html',
+                                    __webview_options__: {
+                                        transparentTitle: 'none', // other option(s): 'auto'
+                                        backgroundColor: '-1',
+                                        canPullDown: false, // alias: 'NO'
+                                        gestureBack: true, // alias: 'YES'
+                                        backBehavior: 'back', // other option(s): 'pop'
+                                        enableCubeView: false,
+                                        appClearTop: true,
+                                        startMultApp: true,
+                                        showOptionMenu: true,
+                                        enableScrollBar: false,
+                                        closeCurrentWindow: true,
+                                        defaultTitle: $$app.rl_title,
+                                    },
                                 },
-                            }, 'defaultTitle'),
+                                exclude: 'defaultTitle',
+                            },
                             packageName: $$app.alipay_pkg,
                         },
                         acc_man: {
@@ -363,7 +371,7 @@ let $$init = {
                                 let _s_str = (_h || _m ? _s.padStart(2, 0) : _s) + '秒';
 
                                 messageAct(_d_str + _h_str + _m_str + _s_str + '后解除', 1, 0, 1);
-                            }
+                            },
                         },
                         _showMsg: {
                             msg(m) {
@@ -614,11 +622,11 @@ let $$init = {
                                         // tool function(s) //
 
                                         function _alipayHome() {
-                                            return $$app.page.alipay.home()
-                                                && waitForAndClickAction(
-                                                    idMatches(/.*home.+search.but.*/), 1.5e3, 80,
-                                                    {click_strategy: 'w'}
-                                                );
+                                            if ($$app.page.alipay.home()) {
+                                                let _selector = idMatches(/.*home.+search.but.*/);
+                                                let _options = {click_strategy: 'w'};
+                                                return waitForAndClickAction(_selector, 1.5e3, 80, _options);
+                                            }
                                         }
 
                                         function _search() {
@@ -740,14 +748,14 @@ let $$init = {
                             let _par = coord.map((x, i) => ~x ? x : i % 2 ? W : H);
                             return _sel.boundsInside.apply(_sel, _par).clickable().findOnce();
                         },
-                        _carry(fs, no_bak) {
-                            for (let i = 0, l = fs.length; i < l; i += 1) {
-                                let _checker = fs[i];
+                        _carry(fxs, no_bak) {
+                            for (let i = 0, l = fxs.length; i < l; i += 1) {
+                                let _checker = fxs[i];
                                 if ($$arr(_checker)) {
                                     if (no_bak) {
                                         continue;
                                     }
-                                    _checker = () => this._getClickable(fs[i]);
+                                    _checker = () => this._getClickable(fxs[i]);
                                 }
                                 let _w = _checker();
                                 if (_w) {
@@ -770,6 +778,7 @@ let $$init = {
                             });
                         },
                         autojs: {
+                            /** @param {RegExp} rex */
                             _pickupTitle: rex => $$sel.pickup([rex, {
                                 cn$: 'TextView',
                                 bi$: [cX(0.12), cYx(0.03), halfW, cYx(0.12)],
@@ -1007,7 +1016,7 @@ let $$init = {
                                     return !imagesx.findImage(_img, _tpl, {
                                         compress_level: 4,
                                     });
-                                }
+                                },
                             },
                             launch(shared_opt) {
                                 // TODO split from alipay spring board
@@ -1044,7 +1053,8 @@ let $$init = {
                                 }
                                 debugInfo(['返回排行榜失败', '尝试重启支付宝到排行榜页面'], 3);
                                 $$app.page.af.launch();
-                                $$af.fri.launch();
+                                $$app.page.rl.launch();
+                                $$app.monitor.rl_in_page.start();
                             },
                             isInPage() {
                                 let _fg = $$flag.rl_in_page;
@@ -1052,12 +1062,15 @@ let $$init = {
                             },
                         },
                         fri: {
-                            in_page_rex: new RegExp(
-                                /来浇过水.+|(帮忙)?收取\s?\d+g/.source + '|' +
-                                /赠送的\s?\d+g\s?.*能量|点击加载更多|.*暂无最新动态.*/.source
-                            ),
-                            // w.bounds().top > cYx(0.85)
-                            in_page_rex_spe: /今天|昨天|\d{2}-\d{2}|((TA|你)(收取)?){2}/,
+                            in_page_rex: new RegExp([
+                                /来浇过水.+/, /收取\s?\d+g/,
+                                /赠送的\s?\d+g\s?.*能量/,
+                                /点击加载更多/, /.*暂无最新动态.*/,
+                            ].map(rex => rex.source).join('|')),
+                            in_page_rex_spe: new RegExp([
+                                /今天/, /昨天/, /\d{2}-\d{2}/,
+                                /((TA|你)(收取)?){2}/,
+                            ].map(rex => rex.source).join('|')),
                             isInPage() {
                                 let _this = this;
                                 return _chkTitle() && _chkPageRex();
@@ -1068,7 +1081,7 @@ let $$init = {
                                     if (_this._is_title_ready_fg) {
                                         return true;
                                     }
-                                    if ($$sel.get('fri_frst_tt')) {
+                                    if ($$sel.get('fri_tt')) {
                                         return _this._is_title_ready_fg = true;
                                     }
                                 }
@@ -1087,7 +1100,6 @@ let $$init = {
                             },
                             getReady() {
                                 $$app.monitor.reload_btn.start();
-                                $$app.monitor.expand_feed.start();
 
                                 let _max = 20e3;
                                 let _max_bak = _max;
@@ -1192,9 +1204,8 @@ let $$init = {
                                 detectCover() {
                                     let _color = $$cfg.protect_cover_detect_color_val;
                                     let _par = {threshold: $$cfg.protect_cover_detect_threshold};
-                                    let _clip = (img) => images.clip(
-                                        img, cX(288), cYx(210), cX(142), cYx(44)
-                                    );
+                                    let _clip = (img) => images.clip(img,
+                                        cX(288), cYx(210), cX(142), cYx(44));
                                     return this.data.some((img) => {
                                         let _c = !imagesx.isRecycled(img) && _clip(img);
                                         if (_c) {
@@ -1225,6 +1236,24 @@ let $$init = {
 
                             if (!$$cfg.kill_when_done_keep_af_pages) {
                                 return this.af.close();
+                            }
+                        },
+                        closeAllRelated() {
+                            let _trig = () => {
+                                return $$sel.get('af_title')
+                                    || $$sel.get('rl_title')
+                                    || $$app.page.fri.isInPage();
+                            };
+                            if (_trig()) {
+                                let _max = 20;
+                                let _ctr = 0;
+                                do {
+                                    keycode(4, {double: true});
+                                    _ctr += 1;
+                                    sleep(500);
+                                } while (_max-- && _trig());
+
+                                debugInfo('关闭相关H5页面: ' + _ctr + '页');
                             }
                         },
                     };
@@ -1274,7 +1303,7 @@ let $$init = {
                                     text: '#dcedc8',
                                 },
                             },
-                            xml: <vertical id='view'>
+                            xml: <vertical id="view">
                                 <img id="img" src="@drawable/ic_alarm_on_black_48dp"
                                      height="55" margin="0 12 0 10" gravity="center"
                                      bg="?selectableItemBackgroundBorderless"/>
@@ -1299,7 +1328,7 @@ let $$init = {
                                 _win.setPosition(halfW - _w / 2, _y);
                                 _win['view'].on('click', this._onClick.bind(this));
                                 uix.setImageTint(_win['img'], this.cfg.colors.img);
-                                _win.text.setTextColor(this.cfg.colors.text);
+                                _win['text'].setTextColor(this.cfg.colors.text);
 
                                 this._countdown($$app.next_auto_task_ts);
                             },
@@ -1309,7 +1338,6 @@ let $$init = {
                                 let _now_yy = _now.getFullYear();
                                 let _now_MM = _now.getMonth();
                                 let _now_dd = _now.getDate();
-                                let _now_dates = [_now_yy, _now_MM, _now_dd];
                                 let _day_ms = 24 * 3.6e6;
 
                                 let _aim_str = '';
@@ -1329,22 +1357,21 @@ let $$init = {
                                     if (typeof t === 'number') {
                                         _aim_str = _tsToTime(t);
                                         return new Date(t);
-                                    } else if (t instanceof Date) {
+                                    }
+                                    if (t instanceof Date) {
                                         _aim_str = _tsToTime(t.getTime());
                                         return t;
-                                    } else {
-                                        if (typeof t !== 'string') {
-                                            throw Error('Invalid type of time param');
-                                        }
-                                        if (!t.match(/^\d{2}:\d{2}:\d{2}$/)) {
-                                            throw Error('Invalid format of time param');
-                                        }
-                                        _aim_str = t;
-                                        // noinspection JSCheckFunctionSignatures
-                                        return new (Array.bind.apply(
-                                            Date, [Date].concat(_now_dates, t.split(':'))
-                                        ));
                                     }
+                                    if (typeof t !== 'string') {
+                                        throw Error('Invalid type of time param');
+                                    }
+                                    if (!t.match(/^\d{2}:\d{2}:\d{2}$/)) {
+                                        throw Error('Invalid format of time param');
+                                    }
+                                    _aim_str = t;
+                                    // noinspection JSCheckFunctionSignatures
+                                    let _args = [Date].concat([_now_yy, _now_MM, _now_dd], t.split(':'));
+                                    return new (Array.bind.apply(Date, _args));
                                 })();
                                 let _aim_ts = _aim.getTime();
                                 if (typeof t === 'string') {
@@ -1369,9 +1396,9 @@ let $$init = {
 
                                 let _setText = () => {
                                     try {
-                                        this.window.text.setText(
-                                            'Next auto task\n' + _getAimStr() + '\n' + _getCtdStr()
-                                        );
+                                        this.window['text'].setText([
+                                            'Next auto task', _getAimStr(), _getCtdStr(),
+                                        ].join('\n'));
                                     } catch (e) {
                                         // eg: java.lang.NullPointerException
                                     }
@@ -1758,9 +1785,10 @@ let $$init = {
                                 let _w_interrupt = _win['hint_interrupt'];
 
                                 this.itv_id = setInterval(() => {
-                                    android.animation.ObjectAnimator.ofFloat(
-                                        _w_img, 'rotation', [0, 180]
-                                    ).setDuration(1.6e3).start();
+                                    android.animation.ObjectAnimator
+                                        .ofFloat(_w_img, 'rotation', [0, 180])
+                                        .setDuration(1.6e3)
+                                        .start();
                                 }, 2.4e3);
 
                                 _w_title.setText(
@@ -1838,10 +1866,10 @@ let $$init = {
                             .add('rl_ent', /查看更多好友|View more friends/)
                             .add('rl_end_idt', /.*没有更多.*/)
                             .add('list', className('ListView'))
-                            .add('fri_frst_tt', [/.+的蚂蚁森林/, {bi$: [0, 0, cX(0.95), cY(0.2)]}])
+                            .add('fri_tt', [/.+的蚂蚁森林/, {bi$: [0, 0, cX(0.95), cY(0.2)]}])
                             .add('cover_used', /.*使用了保护罩.*/)
                             .add('wait_awhile', /.*稍等片刻.*/)
-                            .add('reload_fst_page', '重新加载')
+                            .add('reload_frst_page', '重新加载')
                             .add('close_btn', /关闭|Close/)
                             .add('login_btn', /登录|Log in|.*loginButton/)
                             .add('login_new_acc', /换个新账号登录|[Aa]dd [Aa]ccount/)
@@ -1852,7 +1880,7 @@ let $$init = {
                             .add('login_next_step', /下一步|Next|.*nextButton/)
                             .add('input_lbl_acc', /账号|Account/)
                             .add('input_lbl_code', /密码|Password/)
-                            .add('acc_sw_pg_ident', /账号切换|Accounts/)
+                            .add('switch_to_other_acc', idMatches(/.+_item_account/))
                             .add('login_err_ensure', idMatches(/.*ensure/))
                             .add('login_err_msg', (type) => {
                                 let _t = type || 'txt';
@@ -1892,7 +1920,7 @@ let $$init = {
 
                                 // TODO if (!plans_arr) loadFromConfig
                                 return (plans_arr || ['intent', 'pipeline']).some((plan) => {
-                                    let _task_nm = '计划' + surroundWith(plan);
+                                    let _task_nm = '计划' + plan.surround('"');
                                     this._plans[plan]();
                                     if (waitForAction(this.isInPage, 2e3)) {
                                         debugInfo(_task_nm + '成功');
@@ -1907,12 +1935,12 @@ let $$init = {
                                     messageAction('当前非账户切换页面', 8, 0, 1, 1);
                                 }
 
-                                let _sltr = idMatches(/.*list_arrow/);
-                                waitForAction(_sltr, 2e3); // just in case
-                                sleep(300);
+                                let _sltr = idMatches(/.+_item_current/);
+                                waitForAction(_sltr, 2e3, 80); // just in case
+                                sleep(240);
 
                                 // current logged in user abbr (with a list arrow)
-                                let _cur_abbr = $$sel.pickup([_sltr, 's<1c0>0'], 'txt');
+                                let _cur_abbr = $$sel.pickup([_sltr, 's-1'], 'txt');
                                 // abbr of param 'name_str'
                                 let _name_abbr = this.getAbbrFromList(name_str);
                                 // let _is_logged_in = $$acc.isMatchAbbr(name_str, _cur_abbr);
@@ -1927,12 +1955,13 @@ let $$init = {
                                 };
                             },
                             isInList(name_str) {
-                                return $$sel.pickup(/.+\*{3,}.+/, 'wc').some((w) => {
-                                    let _abbr_name = $$sel.pickup(w, 'txt');
-                                    if ($$acc.isMatchAbbr(name_str, _abbr_name)) {
-                                        return this.abbr_name_in_list = _abbr_name;
-                                    }
-                                });
+                                return $$sel.pickup([/.+\*{3,}.+/, {cn$: 'TextView'}], 'wc')
+                                    .some((w) => {
+                                        let _abbr_name = $$sel.pickup(w, 'txt');
+                                        if ($$acc.isMatchAbbr(name_str, _abbr_name)) {
+                                            return this.abbr_name_in_list = _abbr_name;
+                                        }
+                                    });
                             },
                             isInPage() {
                                 return $$acc.isInSwAccPg();
@@ -1947,11 +1976,11 @@ let $$init = {
                         _codec(str, opr) {
                             let _str = str || '';
                             let _res = '';
-                            let _fct = {e: 1, d: -1}[opr[0]];
+                            let _factor = {e: 1, d: -1}[opr[0]];
                             for (let i in _str) {
-                                _res += String.fromCharCode(
-                                    _str.charCodeAt(+i) + ((996).ICU + +i) * _fct
-                                );
+                                let _char_code = _str.charCodeAt(+i);
+                                let _shifting = ((996).ICU + +i) * _factor;
+                                _res += String.fromCharCode(_char_code + _shifting);
                             }
                             return _res;
                         },
@@ -2013,7 +2042,7 @@ let $$init = {
                         },
                         isInSwAccPg() {
                             return $$sel.get('login_new_acc')
-                                || $$sel.get('acc_sw_pg_ident');
+                                || $$sel.get('switch_to_other_acc');
                         },
                         isMatchAbbr(name_str, abbr) {
                             name_str = name_str.toString();
@@ -2052,7 +2081,7 @@ let $$init = {
                             return abbr.slice(i, k + 1).match(/^\*+$/);
                         },
                         /**
-                         * @param user {object}
+                         * @param {Object} user
                          * @param {string} [user.abbr] - abbr username
                          * @param {string} [user.name] - full username without encryption
                          * @param {string} [user.name_raw] - encrypted username
@@ -2066,7 +2095,7 @@ let $$init = {
 
                             function _ready() {
                                 if (!$$obj(user)) {
-                                    messageAction('登录参数类型无效: ' + classof(user), 8, 1, 0, 2);
+                                    messageAction('登录参数类型无效: ' + user, 8, 1, 0, 2);
                                 }
                                 if (!user.name && !user.abbr && !user.name_raw) {
                                     messageAction('usr_info参数缺少必要属性', 8, 1, 0, 2);
@@ -2537,7 +2566,7 @@ let $$init = {
 
                                 function _condChecker(cond) {
                                     if (!$$obj(cond)) {
-                                        debugInfo(['条件检查器参数无效', '>' + classof(cond)]);
+                                        debugInfo(['条件检查器参数无效', '>' + cond]);
                                         return false;
                                     }
 
@@ -2683,9 +2712,10 @@ let $$init = {
                             _path: $$app.local_pics_path + 'main_user_mini_avatar_clip.png',
                             _isTotalGreen(img) {
                                 let _img = imagesx.compress(img, 2);
-                                let _res = imagesx.findAllPointsForColor(
-                                    _img, '#30bf6c', {threshold: 50}
-                                ).length > _img.height * _img.width * 0.98;
+                                let _pts = imagesx.findAllPointsForColor(_img, '#30bf6c', {
+                                    threshold: 50,
+                                });
+                                let _res = _pts.length > _img.height * _img.width * 0.98;
                                 _img.recycle();
                                 _img = null;
                                 return _res;
@@ -2751,7 +2781,7 @@ let $$init = {
                                 let _b = null;
                                 waitForAction(() => _b = _getAvtPos(), 8e3, 100);
 
-                                if (!_b || $$emptyObj(_b)) {
+                                if (!_b || !Object.size(_b)) {
                                     messageAction('无法获取当前头像样本', 3);
                                     messageAction('森林主页头像控件定位失败', 3, 1);
                                     return false;
@@ -3021,7 +3051,7 @@ let $$init = {
                     // tool function(s) //
 
                     function _screenOn() {
-                        if ($$unlk.is_init_screen_on) {
+                        if (devicex.is_init_screen_on) {
                             return true;
                         }
                         debugInfo(['跳过前置应用黑名单检测', '>屏幕未亮起']);
@@ -3280,19 +3310,17 @@ let $$init = {
                     // constructor(s) //
 
                     /**
-                     * @param {string} [desc]
-                     * -- will show in console as the monitor name
+                     * @param {string} [desc] - will show in console as the monitor name
                      * @param {string|number} [limit=Infinity]
-                     * @param params {object}
-                     * @param {boolean|string} [params.switching]
-                     * -- monitor may be disabled according to $$cfg
-                     * @param params.trigger {function}
+                     * @param {Object} params
+                     * @param {boolean|string} [params.switching] - monitor may be disabled by $$cfg
+                     * @param {function} params.trigger
                      * @param {function} [params.onTrigger]
-                     * @param params.onRelease {function}
+                     * @param {function} params.onRelease
                      * @constructor
                      */
                     function Monitor(desc, limit, params) {
-                        let _desc = surroundWith(desc);
+                        let _desc = desc.surround('"');
                         let _limit = _handleLimitParam(limit);
                         let _sw = _handleSwitch(params.switching);
                         let _trigger = params.trigger;
@@ -3324,7 +3352,7 @@ let $$init = {
                                             let _suffix = +_lmt.toFixed(2) + unit;
                                             return _pref + ' (最多' + _suffix + ')';
                                         };
-                                        if (isInfinite(_lmt)) {
+                                        if (!isFinite(_lmt)) {
                                             return _pref;
                                         }
                                         if (_lmt < 1e3) {
@@ -3514,7 +3542,7 @@ let $$init = {
                                 },
                                 onRelease() {
                                     $$flag.glob_e_trig_counter++;
-                                    $$unlk.isLocked() && $$unlk.unlock();
+                                    devicex.isLocked() && devicex.unlock();
                                     $$flag.glob_e_trig_counter--;
                                 },
                             },
@@ -3598,7 +3626,7 @@ let $$init = {
                             desc: '树对话框遮罩',
                         }, {
                             trig: idMatches(/.*J_strollGuide/),
-                            desc: '"找能量"向导遮罩', // old button name: "逛一逛"
+                            desc: '逛一逛向导遮罩', // new button name: "找能量"
                         }].map((o) => {
                             if (!$$func(o.trig)) {
                                 let _trig = o.trig;
@@ -3653,7 +3681,7 @@ let $$init = {
                     }
                 }),
                 reload_btn: new Monitor('"重新加载"按钮', function () {
-                    let _sel = () => $$sel.get('reload_fst_page');
+                    let _sel = () => $$sel.get('reload_frst_page');
                     let _click = () => clickAction(_sel(), 'w');
 
                     while (1) {
@@ -3680,18 +3708,20 @@ let $$init = {
                     /** @type {UiSelector$pickup$return_value|null} */
                     let _list_w = null, _rl_end_w = null;
 
-                    while (1) {
+                    while (!$$flag.rl_bottom_rch) {
                         try {
                             return _locate() && $$link(_text).$(_height).$(_signal);
-                        } catch (e) {
-                            // TypeError: Cannot call method "childCount" of null
+                        } catch (e /* TypeError: Cannot call method "childCount" of null */) {
+                            sleep(2e3);
                         }
                     }
 
                     // tool function(s) //
 
                     function _locate() {
-                        _list_w = null;
+                        if (_list_w) {
+                            return true;
+                        }
                         debugInfo('开始定位排行榜可滚动控件');
 
                         let _sel = () => _list_w = $$sel.pickup({
@@ -3766,6 +3796,16 @@ let $$init = {
                             messageAction('脚本无法继续', 4, 0, 0, -1);
                             messageAction('用户未注册蚂蚁森林', 8, 1, 1, 1);
                         }
+                        sleep(240);
+                    }
+                }),
+                pattern_lock: new Monitor('支付宝手势锁', function () {
+                    while (1) {
+                        if ($$sel.pickup(/.+\/(AlipayPattern|patternCheck)/)) {
+                            messageAction('脚本无法继续', 4, 0, 0, -1);
+                            messageAction('检测到支付宝手势锁', 8, 1, 1, 1);
+                        }
+                        sleep(240);
                     }
                 }),
                 launch_confirm: new Monitor('允许打开', function (tt) {
@@ -3838,8 +3878,8 @@ let $$init = {
         }
     },
     unlock() {
-        let _is_scr_on = $$unlk.is_init_screen_on;
-        let _is_unlked = $$unlk.isUnlocked();
+        let _is_scr_on = devicex.is_init_screen_on;
+        let _is_unlked = devicex.isUnlocked();
         let _err = m => {
             messageAction('脚本无法继续', 4, 0, 0, -1);
             messageAction(m, 8, 1, 1, 1);
@@ -3850,7 +3890,7 @@ let $$init = {
             _is_unlked || _err('设备上锁且自动解锁功能未开启');
         }
 
-        _is_unlked && _is_scr_on ? debugInfo('无需解锁') : $$unlk.unlock();
+        _is_unlked && _is_scr_on ? debugInfo('无需解锁') : devicex.unlock();
         $$flag.dev_unlocked = true;
 
         return $$init;
@@ -3876,10 +3916,10 @@ let $$init = {
                         return debugInfo(['跳过"运行前提示"', '>检测到"立即运行"引擎参数']);
                     }
                     if ($$cfg.prompt_before_running_auto_skip) {
-                        if (!$$unlk.is_init_screen_on) {
+                        if (!devicex.is_init_screen_on) {
                             return debugInfo(['跳过"运行前提示"', '>屏幕未亮起']);
                         }
-                        if (!$$unlk.is_init_unlocked) {
+                        if (!devicex.is_init_unlocked) {
                             return debugInfo(['跳过"运行前提示"', '>设备未锁定']);
                         }
                     }
@@ -3921,7 +3961,7 @@ let $$init = {
                                     _new[this._key + '_user'] = v;
                                     $$sto.af_cfg.put('config', _new);
                                     Object.assign($$cfg, _new);
-                                }
+                                },
                             };
                             if (_cfg.sto_min > 0) {
                                 d.dismiss();
@@ -4038,12 +4078,10 @@ let $$init = {
                     }
 
                     function _collect() {
-                        $$app.task_name = surroundWith('好友列表数据采集');
+                        $$app.task_name = '好友列表数据采集'.surround('"');
                         messageAction('正在采集好友列表数据', 1, 1, 0, 2);
 
-                        let _thd_swipe = threadsx.start(_thdSwipe);
-                        $$app.monitor.rl_bottom.start().join(5 * 60e3);
-                        _thd_swipe.interrupt();
+                        $$af.rl.swipe.toBottom();
 
                         let _ls_data = _getListData();
                         $$sto.af.remove('friends_list_data'); // discarded data
@@ -4074,19 +4112,6 @@ let $$init = {
                                 list_data: _data,
                                 list_length: _data.length,
                             };
-                        }
-
-                        // thread function(s) //
-
-                        function _thdSwipe() {
-                            let _dist = $$cfg.rank_list_swipe_distance;
-                            if (_dist < 1) {
-                                _dist = Math.trunc(_dist * H);
-                            }
-                            let _top = Math.trunc((uH - _dist) / 2);
-                            while (!$$flag.rl_bottom_rch) {
-                                swipe(halfW, uH - _top, halfW, _top, 150);
-                            }
                         }
                     }
                 },
@@ -4129,7 +4154,7 @@ let $$init = {
                         // thread function(s) //
 
                         function _thdGetName() {
-                            $$app.task_name = surroundWith('采集当前账户名');
+                            $$app.task_name = '采集当前账户名'.surround('"');
                             $$app.page.alipay.home();
 
                             messageAction('正在采集当前账户名', 1, 0, 0, -1);
@@ -4201,23 +4226,10 @@ let $$af = {
             return this;
         },
         assign() {
-            $$af = Object.assign($$af, {
+            Object.assign($$af, {
                 emount_t_own: 0, // t: total
                 emount_c_own: 0, // c: collected
                 emount_c_fri: 0,
-                /** @type AfHoughBallsResult|{} */
-                home_balls_info: {},
-                eballs(type, options) {
-                    let _opt = options || {};
-                    if (!_opt.cache || !Object.size(this.home_balls_info)) {
-                        this.home_balls_info = imagesx.findAFBallsByHough({
-                            no_debug_info: _opt.no_debug_info,
-                        });
-                    }
-                    return !type || type === 'all'
-                        ? this.home_balls_info.expand()
-                        : this.home_balls_info[type] || [];
-                },
                 cleaner: {
                     imgWrapper() {
                         imagesx.recycleGlobal();
@@ -4226,14 +4238,131 @@ let $$af = {
                         $$af.home_balls_info = {};
                     },
                 },
+                stroll: {
+                    max_cnt_cycle: $$cfg.max_continuous_not_targeted_stroll_cycle,
+                    ignored: {
+                        samples: {},
+                        add(sample) {
+                            return sample in this.samples ?
+                                (this.samples[sample] += 1) :
+                                (this.samples[sample] = 1);
+                        },
+                        reset() {
+                            this.samples = {};
+                        },
+                        getMaxCount() {
+                            return Math.maxi(Object.values(this.samples));
+                        },
+                    },
+                    locate(cache_fg) {
+                        if (this.pt && cache_fg) {
+                            return this.pt;
+                        }
+                        return this.pt = _byColorMatch() || _byRelativeWidget();
+
+                        // tool function(s) //
+
+                        function _byColorMatch() {
+                            //        xA  x0   x1   x2
+                            //        --  --   --   --
+                            // yA:        O1   O2   O3
+                            // y0:    O4  XX        O5
+                            // y1:        O6   O7   O8
+                            // y2:        W1   W2   W3
+
+                            let _xA = cX(-26), _x0 = 0, _x1 = cX(29), _x2 = cX(58);
+                            let _yA = cYx(-24), _y0 = 0, _y1 = cYx(24), _y2 = cYx(34);
+                            let _main_color = colorsx.toInt($$cfg.stroll_btn_locate_main_color);
+
+                            return images.findMultiColors(imagesx.capt(), _main_color, [
+                                [_x0, _yA, _main_color], // O1
+                                [_x1, _yA, _main_color], // O2
+                                [_x2, _yA, _main_color], // O3
+                                [_xA, _y0, _main_color], // O4
+                                [_x2, _y0, _main_color], // O5
+                                [_x0, _y1, _main_color], // O6
+                                [_x1, _y1, _main_color], // O7
+                                [_x2, _y1, _main_color], // O8
+                                [_x0, _y2, -1], // W1
+                                [_x1, _y2, -1], // W2
+                                [_x2, _y2, -1], // W3
+                            ], {threshold: $$cfg.stroll_btn_match_threshold});
+                        }
+
+                        function _byRelativeWidget() {
+                            let _bottom_ctr = {};
+                            $$sel.filter(function (w) {
+                                let _bnd = w.bounds();
+                                return _bnd.bottom < uH
+                                    && _bnd.width() > cX(0.98)
+                                    && _bnd.height() > cYx(0.12);
+                            }).find().forEach(function (w) {
+                                let _bnd = w.bounds();
+                                let _b = _bnd.bottom;
+                                _b in _bottom_ctr ? ++_bottom_ctr[_b] : (_bottom_ctr[_b] = 1);
+                            });
+
+                            let _bottoms = Object.keys(_bottom_ctr)
+                                .map(b => [b, _bottom_ctr[b]])
+                                .sort((a, b) => a[1] === b[1] ? 0 : a[1] < b[1] ? 1 : -1)[0];
+
+                            if (_bottoms && _bottoms.length) {
+                                return [W - cX(50), _bottoms[0] - cYx(50)];
+                            }
+                        }
+                    },
+                    click() {
+                        if (this.pt || this.locate()) {
+                            return clickAction(this.pt, 'p', {pt$: 64, bt$: 500});
+                        }
+                    },
+                    isSlake() {
+                        return this.isInSlakePage() || this.isMaxCntCycleReached();
+                    },
+                    isInSlakePage() {
+                        return $$sel.pickup([/.*返回.*森林.*/, {clickable: true}]);
+                    },
+                    isMaxCntCycleReached() {
+                        return this.ignored.getMaxCount() > this.max_cnt_cycle;
+                    },
+                    isDisabled() {
+                        return this._is_disabled === true;
+                    },
+                    disable() {
+                        this._is_disabled = true;
+                    },
+                    trigger() {
+                        return $$cfg.get_targets_by_stroll_btn && !this.isDisabled();
+                    },
+                    reset() {
+                        this.ignored.reset();
+                    },
+                },
+                /** @type {AfHoughBallsResult|Object} */
+                home_balls_info: {},
+                eballs(type, options) {
+                    let _opt = options || {};
+                    if (!_opt.cache || Object.size(this.home_balls_info) > 0) {
+                        this.home_balls_info = imagesx.findAFBallsByHough({
+                            no_debug_info: _opt.no_debug_info,
+                        });
+                    }
+                    return !type || type === 'all'
+                        ? this.home_balls_info.expand()
+                        : this.home_balls_info[type] || [];
+                },
             });
 
             return this;
         },
         home() {
             $$app.monitor.unregistered.start();
+            $$app.monitor.pattern_lock.start();
+
             $$app.page.af.launch();
+
             $$app.monitor.unregistered.disable();
+            $$app.monitor.pattern_lock.disable();
 
             return this;
         },
@@ -4367,7 +4496,7 @@ let $$af = {
                     delete $$app.avatar_checked_time;
                 }
 
-                $$af.min_ctd_own = Infinity;
+                $$af.min_ctd.own.reset();
                 $$af.thrd_mon_own = $$cfg.homepage_monitor_threshold;
                 $$af.thrd_bg_mon_own = $$cfg.homepage_bg_monitor_threshold;
 
@@ -4435,7 +4564,7 @@ let $$af = {
                         function _ctdTrigger() {
                             debugInfo('开始检测自己能量球最小倒计时');
 
-                            $$af.min_ctd_own = Infinity;
+                            $$af.min_ctd.own.reset();
                             let _nor_balls = $$af.eballs('naught', {cache: true});
                             let _len = _nor_balls.length;
                             if (!_len) {
@@ -4450,11 +4579,11 @@ let $$af = {
                             if (!$$num(_min_own) || _min_own <= 0) {
                                 return debugInfo('自己能量最小倒计时数据无效', 3);
                             }
-                            if (isInfinite(_min_own)) {
+                            if (!isFinite(_min_own)) {
                                 return debugInfo('自己能量倒计时数据为空');
                             }
 
-                            $$af.min_ctd_own = _min_own;
+                            $$af.min_ctd.own.value = _min_own;
 
                             let _t = timeRecorder('ctd_own', 'L', 60e3, [2], '', _min_own);
                             debugInfo('自己能量最小倒计时: ' + _t + '分钟');
@@ -4504,7 +4633,7 @@ let $$af = {
                                 }
 
                                 return _ctd_data.map((str) => {
-                                    let _mch = str.match(/\d+:\d+/);
+                                    let _mch = (str || '').toString().match(/\d+:\d+/);
                                     if (!_mch) {
                                         messageAction('无效字串:', 3);
                                         messageAction(str, 3);
@@ -4533,8 +4662,7 @@ let $$af = {
 
                                     let _stitched = (() => {
                                         let _getClip = (o) => images.clip(_capt,
-                                            o.left, o.top, o.width(), o.height()
-                                        );
+                                            o.left, o.top, o.width(), o.height());
                                         let _img = _getClip(_nor_balls[0]);
                                         _nor_balls.slice(1).forEach((o) => {
                                             _img = imagesx.concat(_img, _getClip(o), 'BOTTOM', 'ALL');
@@ -4542,7 +4670,7 @@ let $$af = {
                                         return _img;
                                     })();
 
-                                    let _raw_data = baiduOcr(_stitched, {
+                                    let _raw_data = imagesx.baiduOcr(_stitched, {
                                         fetch_times: 3,
                                         fetch_interval: 500,
                                         no_toast_msg_flag: true,
@@ -4599,23 +4727,18 @@ let $$af = {
                                 function _thdToast() {
                                     debugInfo('已开启倒计时数据Toast监控线程');
 
-                                    let _data = [];
-                                    let _du = $$cfg.forest_balls_click_duration;
+                                    let _ctd = _nor_balls.map((o) => {
+                                        clickAction(o, 'p', {pt$: $$cfg.forest_balls_click_duration});
+                                        return observeToastMessage($$app.alipay_pkg, /才能收取/, 240);
+                                    }).flat(Infinity);
 
-                                    _nor_balls.forEach((o) => {
-                                        clickAction(o, 'p', {press_time: _du});
-                                        _data = _data.concat(
-                                            observeToastMessage($$app.alipay_pkg, /才能收取/, 240)
-                                        );
-                                    });
-
-                                    if (_data.length) {
+                                    if (_ctd.length) {
                                         debugInfo('Toast监控线程已获取有效数据');
                                         if (_alive(_thd_ocr)) {
                                             _kill(_thd_ocr);
                                             debugInfo('强制停止OCR识别线程');
                                         }
-                                        return _ctd_data = _data;
+                                        return _ctd_data = _ctd;
                                     }
                                     debugInfo('Toast监控线程未能获取有效数据');
                                 }
@@ -4681,13 +4804,23 @@ let $$af = {
                         }
                         debugInfo('开始检测浇水回赠能量球');
                         let _wb_cache = $$af.eballs('water', {cache: true});
-                        let _ctr = 0, _lmt = $$cfg.homepage_wball_check_limit;
+                        let _ctr = 0;
+                        let _lmt = {
+                            trigger() {
+                                $$und(this.counter) && this.reset();
+                                return --this.counter < 0;
+                            },
+                            reset() {
+                                this.counter = $$cfg.homepage_wball_check_limit;
+                            },
+                            shrink() {
+                                this.counter = 1;
+                            },
+                        };
                         if (_wb_cache.length) {
                             debugInfo('发现浇水回赠能量球');
                             _wb_cache.forEach(_fetch);
-                            while (_trig()) {
-                                _fetch();
-                            }
+                            _sustain();
                         }
                         if (_ctr > 0) {
                             debugInfo('收取浇水回赠能量球: ' + _ctr + '个');
@@ -4698,30 +4831,61 @@ let $$af = {
 
                         // tool function(s) //
 
-                        function _trig() {
-                            if (_lmt--) {
+                        function _sustain() {
+                            let _is_continue = false;
+                            let _is_detected = false;
+                            let _getWballsByCachedPos = () => {
                                 let _capt = imagesx.capt();
-                                _wb_cache.some((coord) => {
-                                    if (imagesx.isWaterBall(coord, _capt)) {
-                                        return _waterBalls.coord = coord;
-                                    }
+                                let _wballs = _wb_cache.filter((o) => {
+                                    return imagesx.isWaterBall(o, _capt);
                                 });
                                 _capt.recycle();
                                 _capt = null;
-                                return true;
-                            }
-                            messageAction('中断主页浇水回赠能量球检测', 3, 0, 0, -1);
-                            messageAction('已达最大检查次数限制', 3, 0, 1, 1);
+                                return _wballs;
+                            };
+                            let _sleep = (itv) => {
+                                let _et = timeRecorder('get_and_fetch_wballs', 'L');
+                                sleep(Math.max(itv - _et, 0));
+                            };
+
+                            do {
+                                if (_lmt.trigger()) {
+                                    messageAction('中断主页浇水回赠能量球检测', 3, 0, 0, -1);
+                                    messageAction('已达最大检查次数限制', 3, 0, 1, 1);
+                                    break;
+                                }
+                                timeRecorder('get_and_fetch_wballs');
+
+                                let _max = 2;
+                                while (_max--) {
+                                    let _wballs = _getWballsByCachedPos();
+                                    if (_wballs.length) {
+                                        _is_continue = true;
+                                        _is_detected |= true;
+                                        _wballs.forEach(_fetch);
+                                        _sleep(300);
+                                        break;
+                                    }
+                                    _is_continue = false;
+                                    if (!_is_detected) {
+                                        break;
+                                    }
+                                    _max && sleep(480);
+                                }
+                            } while (_is_continue);
                         }
 
                         function _fetch(o) {
-                            clickAction(o || _waterBalls.coord, 'p', {pt$: $$cfg.forest_balls_click_duration});
-                            sleep(240);
-
+                            timeRecorder('fetch_wballs');
+                            clickAction(o, 'p', {pt$: $$cfg.forest_balls_click_duration});
                             if (_stableEmount()) {
-                                return _ctr += 1;
+                                _ctr += 1;
+                            } else {
+                                _lmt.shrink();
+                                debugInfo(['浇水回赠能量球点击超时', '可能是能量球误匹配']);
                             }
-                            _lmt = +!!debugInfo(['浇水回赠能量球点击超时', '可能是能量球误匹配']);
+                            let _et = timeRecorder('fetch_wballs', 'L');
+                            sleep(Math.max(300 - _et, 0));
                         }
                     }
 
@@ -4814,7 +4978,7 @@ let $$af = {
 
                 function _result() {
                     let _em = $$af.emount_c_own;
-                    if (_em < 0 || isInfinite(_em)) {
+                    if (_em < 0 || !isFinite(_em)) {
                         debugInfo('收取值异常: ' + _em, 3);
                     } else if (!_em) {
                         debugInfo('无能量球可收取');
@@ -4826,7 +4990,7 @@ let $$af = {
                 }
             },
             awake() {
-                let _ctd_ts = $$af.min_ctd_own;
+                let _ctd_ts = $$af.min_ctd.own.value;
                 let _cA = _ctd_ts && isFinite(_ctd_ts);
                 let _cB = _ctd_ts - $$app.ts <= $$af.thrd_bg_mon_own * 60e3 + 9e3;
                 if (_cA && _cB) {
@@ -4864,7 +5028,7 @@ let $$af = {
                     });
 
                     let _z = Object.size(_smp);
-                    _z && debugInfo('解析好友有效倒计时数据: ' + _z + '项');
+                    _z > 0 && debugInfo('解析好友有效倒计时数据: ' + _z + '项');
 
                     return this.rl_samples = _smp;
                 }
@@ -4872,7 +5036,7 @@ let $$af = {
             _chkMinCtd(cache_fg) {
                 let _smp = this._getSamples(cache_fg);
 
-                if (Object.size(_smp)) {
+                if (Object.size(_smp) > 0) {
                     let _min_mm = Infinity;
                     let _min_ctd = Infinity;
 
@@ -4884,13 +5048,25 @@ let $$af = {
                     });
 
                     if (_min_mm > 0) {
-                        $$af.min_ctd_fri = _min_ctd;
+                        $$af.min_ctd.fri.value = _min_ctd;
                         debugInfo('好友能量最小倒计时: ' + _min_mm + '分钟');
                         debugInfo('时间数据: ' + $$cvt.date(_min_ctd));
                         debugInfo('好友能量最小倒计时检测完毕');
                         return _min_mm <= $$cfg.rank_list_review_threshold;
                     }
                     debugInfo('好友倒计时数据无效: ' + _min_mm, 3);
+                }
+            },
+            _strollReady() {
+                return $$af.stroll.trigger() && $$af.stroll.locate();
+            },
+            _rankListReady() {
+                $$app.page.closeAllRelated();
+                $$app.page.rl.pool.clean();
+                if ($$app.page.rl.launch()) {
+                    $$app.monitor.rl_in_page.start();
+                    $$app.monitor.rl_bottom.start();
+                    return true;
                 }
             },
             thd_info_collect: {
@@ -4926,11 +5102,11 @@ let $$af = {
                 },
             },
             eballs: {
-                /** @type EnergyBallsInfo[] */
+                /** @type {EnergyBallsInfo[]} */
                 ripe: [],
-                /** @type EnergyBallsInfo[] */
+                /** @type {EnergyBallsInfo[]} */
                 naught: [],
-                /** @type EnergyBallsInfo[] */
+                /** @type {EnergyBallsInfo[]} */
                 water: [],
                 get length() {
                     return this.ripe.length + this.naught.length;
@@ -4942,138 +5118,27 @@ let $$af = {
                 },
             },
             trigger() {
-                let _sw_pick = $$cfg.friend_collect_switch;
-
-                if (!_sw_pick) {
-                    debugInfo('跳过好友能量检查');
-                    debugInfo('>收取功能未开启');
-                    return;
-                }
-
-                Object.defineProperties($$af.fri = this, {
-                    trig_pick: {get: () => _sw_pick},
-                });
-
-                return true;
+                return $$cfg.friend_collect_switch;
             },
             init() {
-                $$link(greet).$(killH5).$(assign).$(blist);
+                debugInfo($$flag.rl_review ? '开始复查好友能量' : '开始检查好友能量');
+
+                delete $$flag.rl_bottom_rch;
+                delete $$flag.rl_review;
+
+                $$af.min_ctd.fri.reset();
+                $$app.blist.init();
+
+                this._strollReady() || this._rankListReady();
 
                 return this;
-
-                // tool function(s) //
-
-                function greet() {
-                    debugInfo($$flag.rl_review ? '开始复查好友能量' : '开始检查好友能量');
-                }
-
-                function killH5() {
-                    let _trig = () => {
-                        return $$sel.get('af_title')
-                            || $$sel.get('rl_title')
-                            || $$app.page.fri.isInPage();
-                    };
-                    if (_trig()) {
-                        let _max = 20;
-                        let _ctr = 0;
-                        do {
-                            keycode(4, {double: true});
-                            _ctr += 1;
-                            sleep(500);
-                        } while (_max-- && _trig());
-
-                        debugInfo('关闭相关H5页面: ' + _ctr + '页');
-                    }
-                }
-
-                function assign() {
-                    delete $$flag.rl_valid_click;
-                    delete $$flag.rl_bottom_rch;
-                    delete $$flag.rl_review;
-
-                    $$af.min_ctd_fri = Infinity;
-                }
-
-                function blist() {
-                    $$app.blist.init();
-                }
-            },
-            launch() {
-                $$app.page.rl.launch();
-                $$app.monitor.rl_in_page.start();
-                $$app.user_nickname = _getNickname();
-
-                return this;
-
-                // tool function(s) //
-
-                function _getNickname() {
-                    if (!$$und($$app.user_nickname)) {
-                        return $$app.user_nickname;
-                    }
-                    return _fromRl() || _fromActivity();
-
-                    // tool function(s) //
-
-                    function _fromRl() {
-                        let _res = $$sel.pickup([$$app.rex_energy_amt, 'p2c2>0>0'], 'txt');
-                        if (_res) {
-                            debugInfo('已从排行榜获取当前账户昵称');
-                            return _res;
-                        }
-                        debugInfo('排行榜获取到无效账户昵称', 3);
-                    }
-
-                    function _fromActivity() {
-                        appx.startActivity({
-                            data: 'alipays://platformapi/startapp?appId=20000141',
-                            packageName: $$app.alipay_pkg,
-                        });
-
-                        let _nick = '';
-                        if (!waitForAction(className('EditText'), 4.8e3, 60)) {
-                            messageAction('无法获取当前账户昵称', 3, 0, 0, -1);
-                            messageAction('进入昵称设置页面超时', 3, 1, 0, 1);
-                        } else {
-                            waitForAction(() => (
-                                _nick = $$sel.pickup(className('EditText'), 'txt')
-                            ), 480, 60);
-                            $$app.page.back();
-                        }
-
-                        // make it easier for rl to launch
-                        sleep(500);
-
-                        if ($$str(_nick, '')) {
-                            $$app.page.alipay.home({debug_info_flag: false});
-                            clickAction($$sel.pickup(['我的', 'p1']), 'w');
-
-                            waitForAction(() => (
-                                _nick = $$sel.pickup(idMatches(/.*user_name_left/), 'txt')
-                            ), 2.4e3);
-
-                            _nick = _nick.slice(-2);
-                        }
-
-                        _nick && debugInfo('已从活动页面获取当前账户昵称');
-
-                        return _nick;
-                    }
-                }
             },
             collect() {
                 let _fri = this;
+                let _own = this.parent.own;
                 let _rl = $$app.page.rl;
 
-                // TODO cfg: max_not_targeted_swipe_times
-                let _max_no_tar_swp = 200;
-                let _max_no_tar_swp_bak = _max_no_tar_swp;
-
-                let _awake = () => _fri.parent.own.awake();
-                let _review = () => _fri.review();
-                let _reboot = () => _fri.reboot();
-
-                _rl.pool.add();
+                let _lmt = _limitationSetter();
 
                 while (1) {
                     if (_awake()) {
@@ -5085,663 +5150,753 @@ let $$af = {
                     if (_quit()) {
                         break;
                     }
-                    _swipe();
+                    if (_roll()) {
+                        void _swipe();
+                    }
                 }
 
                 _review() ? _reboot() : _fin();
 
                 // tool function(s) //
 
+                function _awake() {
+                    return _own.awake();
+                }
+
+                function _review() {
+                    return _fri.review();
+                }
+
+                function _reboot() {
+                    return _fri.reboot();
+                }
+
                 function _scan() {
-                    let _color_pick = $$cfg.friend_collect_icon_color;
-
-                    let _prop = {
-                        pick: {
-                            act_desc: '收取',
-                            color: _color_pick,
-                            col_thrd: $$cfg.friend_collect_icon_threshold,
-                            mult_col: (() => {
-                                let _mult = [
-                                    [cX(38), cYx(35), _color_pick],
-                                    [cX(23), cYx(26), -1],
-                                ];
-
-                                // from E6683
-                                for (let i = 16; i <= 24; i += (4 / 3)) {
-                                    _mult.push([cX(i), cY(i - 6, -1), -1]);
-                                }
-
-                                // from E6683
-                                for (let i = 16; i <= 24; i += (8 / 3)) {
-                                    _mult.push([cX(i), cY(i / 2 + 16, -1), -1]);
-                                }
-
-                                return _mult;
-                            })(),
-                            /** @typedef {{icon_y: number, item_y: number, act_desc: string}[]} FriTar */
-                            /** @returns FriTar */
-                            getTar() {
-                                if (_fri.trig_pick) {
-                                    return _chkByImgTpl.call(this);
-                                }
-                                if (!$$flag.dys_pick) {
-                                    debugInfo(['不再采集收取目标样本', '>收取功能未开启']);
-                                    $$flag.dys_pick = true;
-                                }
-                                return [];
-                            },
-                        },
-                    };
-
-                    timeRecorder('rl_scan');
-                    $$app.monitor.rl_bottom.start();
-
-                    _fri.tar = [_getTar('pick')];
-
-                    return Math.sum(_fri.tar.map(x => x.length));
+                    return _scanStrollBtn() || _scanRankList();
 
                     // tool function(s) //
 
-                    /** @returns FriTar */
-                    function _chkByImgTpl() {
-                        let _capt = $$app.page.rl.capt_img;
-                        let _x = cX(0.896);
-                        let _y = cYx(0.09);
-                        let _w = _capt.getWidth() - _x;
-                        let _h = Math.min(_capt.getHeight(), uH) - _y;
-                        let _clip = images.clip(_capt, _x, _y, _w, _h);
-                        let _res = imagesx.matchTemplate(_clip, 'ic_fetch', {
-                            max_results: 15,
-                            compress_level: 2,
-                            not_null: true,
-                            local_cache_access: true,
-                        });
-                        _clip.recycle();
-                        _clip = null;
-
-                        return _res.points.reverse().map((pt) => ({
-                            icon_y: pt.y + _y,
-                            item_y: pt.y + _y + cYx(12),
-                            act_desc: String(this.act_desc),
-                        })).filter(o => o.item_y < uH);
+                    function _scanStrollBtn() {
+                        if ($$af.stroll.trigger()) {
+                            if (!$$af.stroll.locate('cache')) {
+                                $$af.stroll.disable();
+                                Object.assign(_lmt, {
+                                    trigger: () => true,
+                                    message: () => {
+                                        messageAction('定位逛一逛按钮失败', 3, 1, 0, 'up_dash');
+                                        messageAction('逛一逛方案已被禁用', 3, 0, 0, 'dash');
+                                    },
+                                });
+                            }
+                            return true;
+                        }
                     }
 
-                    /**
-                     * @param {'pick'} ident
-                     * @returns FriTar
-                     */
-                    function _getTar(ident) {
-                        return _prop[ident].getTar().sort((a, b) => (
-                            a.icon_y < b.icon_y ? 1 : -1
-                        ));
+                    function _scanRankList() {
+                        let _color_pick = $$cfg.friend_collect_icon_color;
+
+                        let _prop = {
+                            pick: {
+                                act_desc: '收取',
+                                color: _color_pick,
+                                col_thrd: $$cfg.friend_collect_icon_threshold,
+                                mult_col: (() => {
+                                    let _mult = [
+                                        [cX(38), cYx(35), _color_pick],
+                                        [cX(23), cYx(26), -1],
+                                    ];
+
+                                    // from E6683
+                                    for (let i = 16; i <= 24; i += (4 / 3)) {
+                                        _mult.push([cX(i), cY(i - 6, -1), -1]);
+                                    }
+
+                                    // from E6683
+                                    for (let i = 16; i <= 24; i += (8 / 3)) {
+                                        _mult.push([cX(i), cY(i / 2 + 16, -1), -1]);
+                                    }
+
+                                    return _mult;
+                                })(),
+                                /** @typedef {{icon_y: number, item_y: number, act_desc: string}[]} FriTar */
+                                /** @returns {FriTar} */
+                                getTar() {
+                                    if (_fri.trigger()) {
+                                        return _chkByImgTpl.call(this);
+                                    }
+                                    if (!$$flag.dys_pick) {
+                                        debugInfo(['不再采集收取目标样本', '>收取功能未开启']);
+                                        $$flag.dys_pick = true;
+                                    }
+                                    return [];
+                                },
+                            },
+                        };
+
+                        timeRecorder('rl_scan');
+
+                        _fri.tar = [_getTar('pick')];
+
+                        return Math.sum(_fri.tar.map(x => x.length));
+
+                        // tool function(s) //
+
+                        /** @returns {FriTar} */
+                        function _chkByImgTpl() {
+                            let _capt = $$app.page.rl.capt_img;
+                            let _x = cX(0.896);
+                            let _y = cYx(0.09);
+                            let _w = _capt.getWidth() - _x;
+                            let _h = Math.min(_capt.getHeight(), uH) - _y;
+                            let _clip = images.clip(_capt, _x, _y, _w, _h);
+                            let _res = imagesx.matchTemplate(_clip, 'ic_fetch', {
+                                max_results: 15,
+                                compress_level: 2,
+                                not_null: true,
+                                local_cache_access: true,
+                            });
+                            _clip.recycle();
+                            _clip = null;
+
+                            return _res.points.reverse().map((pt) => ({
+                                icon_y: pt.y + _y,
+                                item_y: pt.y + _y + cYx(12),
+                                act_desc: String(this.act_desc),
+                            })).filter(o => o.item_y < uH);
+                        }
+
+                        /**
+                         * @param {'pick'} ident
+                         * @returns {FriTar}
+                         */
+                        function _getTar(ident) {
+                            return _prop[ident].getTar().sort((a, b) => (
+                                a.icon_y < b.icon_y ? 1 : -1
+                            ));
+                        }
                     }
                 }
 
                 function _gather() {
-                    _lmt('reset');
-                    _fri.tar.forEach(_act);
-                    _fri.tar.splice(0);
+                    $$af.stroll.trigger() ? _byStroll() : _byRankList();
 
                     // tool function(s) //
 
-                    function _act(items) {
-                        let _item = null;
-                        let _next = () => _item = items.pop();
+                    function _title() {
+                        let _tt;
+                        waitForAction(() => _tt = $$sel.get('fri_tt', 'txt'), 18e3, 80);
+                        $$af.nick = _tt ? _tt.replace(/的蚂蚁森林$/, '') : '';
+                    }
 
-                        while (_next()) {
-                            $$link(_enter).$(_intro).$(_check).$(_back).$(_coda);
+                    function _intro() {
+                        showSplitLineForDebugInfo();
+                        if ($$af.nick) {
+                            $$app.fri_drop_by.ic($$af.nick);
+                            messageAct($$af.nick, 't');
+                        } else {
+                            messageAction('标题采集好友昵称超时', 3, 1);
                         }
+                        showSplitLineForDebugInfo();
+                    }
 
-                        // tool function(s) //
-
-                        function _enter() {
-                            $$app.monitor.rl_bottom.interrupt();
-
-                            debugInfo('点击' + _item.act_desc + '目标');
-                            showSplitLineForDebugInfo();
-                            clickAction([halfW, _item.item_y], 'p', {pt$: 64});
-
-                            // TODO cond: pool diff
-                            // try avoiding analyzing widgets in rank list
-                            sleep(500);
-                        }
-
-                        function _intro() {
-                            let _nick = '';
-                            waitForAction(() => (
-                                _nick = $$sel.get('fri_frst_tt', 'txt')
-                            ), 20e3, 80);
-                            if (_nick) {
-                                _nick = _nick.replace(/的蚂蚁森林$/, '');
-                                $$app.fri_drop_by.ic(_nick);
-                                messageAct($$af.nick = _nick, 't');
-                            } else {
-                                messageAction('标题采集好友昵称超时', 3, 1);
+                    function _collect() {
+                        do {
+                            if (!_inBlist() && _ready()) {
+                                _monitor();
+                                !_cover() && _harvest();
                             }
-                            showSplitLineForDebugInfo();
+                        } while (_reentry());
+
+                        // main function(s) //
+
+                        function _inBlist() {
+                            if ($$app.blist.get($$af.nick)) {
+                                $$app.fri_drop_by.dc($$af.nick);
+                                return true;
+                            }
                         }
 
-                        function _check() {
-                            do {
-                                if (!_inBlist() && _ready()) {
-                                    _monitor();
-                                    !_cover() && _collect();
-                                }
-                            } while (_reentry());
+                        function _ready() {
+                            _fri.thd_info_collect.interrupt();
+                            return $$app.page.fri.getReady();
+                        }
 
-                            // main function(s) //
+                        function _monitor() {
+                            $$app.monitor.expand_feed.start();
+                            _fri.thd_info_collect.start();
+                        }
 
-                            function _inBlist() {
-                                if ($$app.blist.get($$af.nick)) {
-                                    $$app.fri_drop_by.dc($$af.nick);
-                                    return true;
-                                }
-                            }
+                        function _cover() {
+                            let _is_covered = false;
 
-                            function _ready() {
+                            let _pool = $$app.page.fri.pool;
+                            _pool.getReady();
+                            _pool.detectCover() && _handle();
+
+                            return _is_covered;
+
+                            // tool function(s) //
+
+                            function _handle() {
+                                debugInfo('颜色识别检测到保护罩');
+                                _is_covered = true;
+
+                                debugInfo('终止好友森林信息采集线程');
                                 _fri.thd_info_collect.interrupt();
 
-                                delete $$flag.avail_clicked;
-                                delete $$flag.avail_clicked_pick;
+                                let _w_lst = null;
+                                if (!waitForAction(() => _w_lst = $$sel.get('list'), 3e3, 80)) {
+                                    return messageAction('未能通过列表获取能量罩信息', 3, 1, 1);
+                                }
 
-                                return $$app.page.fri.getReady();
-                            }
+                                let _w_cvr = null;
+                                let _thd_auto_expand = threadsx.start(_autoExpand);
 
-                            function _monitor() {
-                                _fri.thd_info_collect.start();
-                            }
+                                _getTs() && _addBlist();
 
-                            function _cover() {
-                                let _is_covered = false;
-
-                                let _pool = $$app.page.fri.pool;
-                                _pool.getReady();
-                                _pool.detectCover() && _handle();
-
-                                return _is_covered;
+                                return true;
 
                                 // tool function(s) //
 
-                                function _handle() {
-                                    debugInfo('颜色识别检测到保护罩');
-                                    _is_covered = true;
+                                function _autoExpand() {
+                                    debugInfo('已开启动态列表自动展开线程');
 
-                                    debugInfo('终止好友森林信息采集线程');
-                                    _fri.thd_info_collect.interrupt();
-
-                                    let _w_lst = null;
-                                    if (!waitForAction(() => _w_lst = $$sel.get('list'), 3e3, 80)) {
-                                        return messageAction('未能通过列表获取能量罩信息', 3, 1, 1);
+                                    let _ctr = 0;
+                                    let _w = null;
+                                    if (!waitForAction(() => _w = $$sel.pickup(/.*加载更多\s*/), 3e3)) {
+                                        return debugInfo('定位"加载更多"按钮超时', 3);
                                     }
+                                    debugInfo('成功定位' + $$sel.pickup(_w, 'txt').surround('"') + '按钮');
 
-                                    let _w_cvr = null;
-                                    let _thd_auto_expand = threadsx.start(_autoExpand);
+                                    while (_ctr++ < 50) {
+                                        waitForAndClickAction(_w, 3e3, 120, {click_strategy: 'w'});
+                                        sleep(_ctr < 12 ? 200 : 900);
+                                    }
+                                }
 
-                                    _getTs() && _addBlist();
+                                function _getTs() {
+                                    debugInfo('开始采集能量罩使用时间');
 
-                                    return true;
+                                    let _getFeedLegends = () => (
+                                        $$sel.pickup({className: 'ListView'}, 'children') || []
+                                    ).filter((w) => {
+                                        return w.childCount() === 0
+                                            && w.indexInParent() < w.parent().childCount() - 1;
+                                    }).slice(0, 3);
+
+                                    let _max = 8;
+                                    let _selCover = () => $$sel.get('cover_used');
+                                    while (_max--) {
+                                        for (let w of _getFeedLegends()) {
+                                            let _txt = $$sel.pickup(w, 'txt');
+                                            // more than 2 days; like: '03-22'
+                                            let _gt2 = _txt.match(/\d{2}.\d{2}/);
+                                            if (waitForAction(_selCover, 1e3, 80) || _gt2) {
+                                                debugInfo('能量罩信息已定位');
+                                                return _w_cvr = _selCover();
+                                            }
+                                        }
+                                    }
+                                    debugInfo('能量罩使用时间采集失败', 3);
+                                }
+
+                                function _addBlist() {
+                                    _thd_auto_expand.interrupt();
+                                    debugInfo('中断态列表自动展开线程');
+
+                                    /* /今天|昨天/ or like: '05-23' */
+                                    let _date_str = _getDateStr();
+                                    debugInfo('捕获动态列表日期字串: ' + _date_str);
+
+                                    /* like: '03:19' */
+                                    let _time_str = $$sel.pickup([_w_cvr, 'p2c-1'], 'txt');
+                                    debugInfo('捕获动态列表时间字串: ' + _time_str);
+
+                                    $$app.blist.add($$af.nick, _ts(), $$app.blist.reason.cover);
 
                                     // tool function(s) //
 
-                                    function _autoExpand() {
-                                        debugInfo('已开启动态列表自动展开线程');
+                                    /** Returns timestamp when protect cover is invalid */
+                                    function _ts() {
+                                        let _offsetHr = _getOffsetHr();
+                                        let _real_h = new Date().getHours() + _offsetHr;
+                                        let _new_d = new Date().setHours(_real_h);
+                                        _date_str = new Date(_new_d).toDateString();
 
-                                        let _ctr = 0;
-                                        let _w = null;
-                                        if (!waitForAction(() => _w = $$sel.pickup(/.*加载更多\s*/), 3e3)) {
-                                            return debugInfo('定位"加载更多"按钮超时', 3);
-                                        }
-                                        debugInfo('成功定位"' + $$sel.pickup(_w, 'txt') + '"按钮');
-
-                                        while (_ctr++ < 50) {
-                                            waitForAndClickAction(_w, 3e3, 120, {click_strategy: 'w'});
-                                            sleep(_ctr < 12 ? 200 : 900);
-                                        }
-                                    }
-
-                                    function _getTs() {
-                                        debugInfo('开始采集能量罩使用时间');
-
-                                        let _getFeedLegends = () => (
-                                            $$sel.pickup({className: 'ListView'}, 'children') || []
-                                        ).filter((w) => w.childCount() === 0
-                                            && w.indexInParent() < w.parent().childCount() - 1
-                                        ).slice(0, 3);
-
-                                        let _max = 8;
-                                        let _selCover = () => $$sel.get('cover_used');
-                                        while (_max--) {
-                                            for (let w of _getFeedLegends()) {
-                                                let _txt = $$sel.pickup(w, 'txt');
-                                                // more than 2 days; like: '03-22'
-                                                let _gt2 = _txt.match(/\d{2}.\d{2}/);
-                                                if (waitForAction(_selCover, 1e3, 80) || _gt2) {
-                                                    debugInfo('能量罩信息已定位');
-                                                    return _w_cvr = _selCover();
-                                                }
-                                            }
-                                        }
-                                        debugInfo('能量罩使用时间采集失败', 3);
-                                    }
-
-                                    function _addBlist() {
-                                        _thd_auto_expand.interrupt();
-                                        debugInfo('中断态列表自动展开线程');
-
-                                        /* /今天|昨天/ or like: '05-23' */
-                                        let _date_str = _getDateStr();
-                                        debugInfo('捕获动态列表日期字串: ' + _date_str);
-
-                                        /* like: '03:19' */
-                                        let _time_str = $$sel.pickup([_w_cvr, 'p2c-1'], 'txt');
-                                        debugInfo('捕获动态列表时间字串: ' + _time_str);
-
-                                        $$app.blist.add($$af.nick, _ts(), $$app.blist.reason.cover);
+                                        return new Date(_date_str + ' ' + _time_str).getTime();
 
                                         // tool function(s) //
 
-                                        /** Returns timestamp when protect cover is invalid */
-                                        function _ts() {
-                                            let _offsetHr = _getOffsetHr();
-                                            let _real_h = new Date().getHours() + _offsetHr;
-                                            let _new_d = new Date().setHours(_real_h);
-                                            _date_str = new Date(_new_d).toDateString();
+                                        function _getOffsetHr() {
+                                            if (_date_str.match(/昨天/)) {
+                                                return (-24) + 24;
+                                            }
+                                            if (_date_str.match(/今天/)) {
+                                                return (0) + 24;
+                                            }
+                                            let _d_str_mch = _date_str.match(/\d{2}.\d{2}/);
+                                            if (!_d_str_mch) {
+                                                debugInfo('动态列表日期字串解析失败', 3);
+                                                debugInfo('日期字串: ' + _date_str, 3);
+                                                debugInfo('使用默认延时时常: 24小时', 3);
+                                                return +24;
+                                            }
+                                            let _d_str = _d_str_mch[0];
+                                            // like: _MM -> 12, _dd -> 31 (Dec 31)
+                                            let [_MM, _dd] = _d_str.split(/\D/).map(x => Number(x));
+                                            _MM -= 1;
+                                            let _now = new Date(); // like: Jan 1, 2011
+                                            let _n_yy = _now.getFullYear();
+                                            let _n_MM = _now.getMonth();
+                                            let _n_dd = _now.getDate();
+                                            let _n_d_str = _now.toDateString();
+                                            let _yy = _n_yy; // like: 2011
+                                            if (_MM > _n_MM || _MM === _n_MM && _dd > _n_dd) {
+                                                _yy -= 1; // like: 2010
+                                            }
+                                            let _gap = new Date(_n_d_str) - new Date(_yy, _MM, _dd);
+                                            return _gap / 3.6e6 + 24;
+                                        }
+                                    }
 
-                                            return new Date(_date_str + ' ' + _time_str).getTime();
+                                    function _getDateStr() {
+                                        let _txt_cvr = $$sel.pickup(_w_cvr, 'txt');
+                                        let _date_str = '';
+                                        void _w_lst.children().some((child) => {
+                                            if (child.childCount()) {
+                                                return (
+                                                    $$sel.pickup([child, 'c1>1'], 'txt') ||
+                                                    $$sel.pickup([child, 'c0>1'], 'txt')
+                                                ) === _txt_cvr;
+                                            }
+                                            _date_str = $$sel.pickup(child, 'txt');
+                                        });
+                                        return _date_str;
+                                    }
+                                }
+                            }
+                        }
+
+                        function _harvest() {
+                            _fri.thd_info_collect.join();
+                            $$link(_pick).$(_db);
+
+                            // tool function(s) //
+
+                            function _pick() {
+                                if (_fri.trigger()) {
+                                    let _eballs = _fri.eballs.ripe;
+                                    if (_eballs.length) {
+                                        _clickAndCount('pick', _eballs);
+                                    } else {
+                                        debugInfo('没有可收取的能量球');
+                                    }
+                                }
+                            }
+
+                            function _db() {
+                                let _pick = _harvest['cnt_pick'] || 0;
+                                if (_pick) {
+                                    let _name = $$af.nick || '%NULL%';
+                                    let _ts = $$app.ts_sec;
+                                    $$db.insert$([_name, _ts, _pick]);
+                                }
+                            }
+
+                            /**
+                             * @param {'pick'} act
+                             * @param {EnergyBallsInfo[]} data
+                             */
+                            function _clickAndCount(act, data) {
+                                let _prop = {
+                                    pick: {
+                                        src_pref: '收取',
+                                        act_desc: '收取',
+                                        ball_desc: '成熟能量球',
+                                        pk_kw: '你收取TA',
+                                        accu_key: 'emount_c_fri',
+                                    },
+                                };
+
+                                let _cfg = _prop[act];
+                                let _ctr = threadsx.atomic(0);
+                                let _res = threadsx.atomic(-1);
+
+                                let _strategies = {
+                                    pk: {
+                                        desc: 'PK面板',
+                                        condition: () => $$sel.pickup(_cfg.pk_kw),
+                                        getSum(agent) {
+                                            return agent.stab - agent.init;
+                                        },
+                                        getEmount() {
+                                            let _max = 10;
+                                            while (_max--) {
+                                                let _s = $$sel.pickup([_cfg.pk_kw, 's>1'], 'txt');
+                                                if (_s.match(/\d+\s?(kg|t)/)) {
+                                                    debugInfo('放弃低精度参照值');
+                                                    return NaN;
+                                                }
+                                                let _mch = _s.match(/\d+/);
+                                                if (_mch) {
+                                                    return +_mch[0];
+                                                }
+                                            }
+                                            return NaN;
+                                        },
+                                    },
+                                    feed: {
+                                        desc: '动态列表',
+                                        text: {
+                                            NO_BENCHMARK: '__NO_BENCHMARK__',
+                                            TODAY: '今天',
+                                        },
+                                        condition: () => $$sel.get('list'),
+                                        getListWidget() {
+                                            let _w_list = null;
+                                            let _sel_lst = () => _w_list = $$sel.get('list');
+                                            if (!waitForAction(_sel_lst, 1.2e3, 100)) {
+                                                return this.w_list = null;
+                                            }
+                                            return this.w_list = _w_list;
+                                        },
+                                        getSum(agent) {
+                                            let _nickname;
+                                            let _sum = 0;
+                                            let _max = Math.min(agent.stab - agent.init, data.length);
+                                            for (let i = 1; i <= _max; i += 1) {
+                                                let _summary = this.getItemSummary('c' + i);
+                                                _sum += _parseSummary(_summary).amount;
+                                            }
+                                            return _sum;
 
                                             // tool function(s) //
 
-                                            function _getOffsetHr() {
-                                                if (_date_str.match(/昨天/)) {
-                                                    return (-24) + 24;
-                                                }
-                                                if (_date_str.match(/今天/)) {
-                                                    return (0) + 24;
-                                                }
-                                                let _d_str_mch = _date_str.match(/\d{2}.\d{2}/);
-                                                if (!_d_str_mch) {
-                                                    debugInfo('动态列表日期字串解析失败', 3);
-                                                    debugInfo('日期字串: ' + _date_str, 3);
-                                                    debugInfo('使用默认延时时常: 24小时', 3);
-                                                    return +24;
-                                                }
-                                                let _d_str = _d_str_mch[0];
-                                                // like: _MM -> 12, _dd -> 31 (Dec 31)
-                                                let [_MM, _dd] = _d_str.split(/\D/).map(x => Number(x));
-                                                _MM -= 1;
-                                                let _now = new Date(); // like: Jan 1, 2011
-                                                let _n_yy = _now.getFullYear();
-                                                let _n_MM = _now.getMonth();
-                                                let _n_dd = _now.getDate();
-                                                let _n_d_str = _now.toDateString();
-                                                let _yy = _n_yy; // like: 2011
-                                                if (_MM > _n_MM || _MM === _n_MM && _dd > _n_dd) {
-                                                    _yy -= 1; // like: 2010
-                                                }
-                                                let _gap = new Date(_n_d_str) - new Date(_yy, _MM, _dd);
-                                                return _gap / 3.6e6 + 24;
+                                            function _parseSummary(s) {
+                                                let _amount = 0;
+                                                s.split('\ufeff').some((item, idx, arr) => {
+                                                    let _mch = _matchFetchedGrams(item);
+                                                    if (_mch && idx > 0) {
+                                                        let _nick = arr[idx - 1];
+                                                        _nickname = _nickname || _nick;
+                                                        if (_nickname === _nick) {
+                                                            return _amount = Number(_mch[0]);
+                                                        }
+                                                    }
+                                                });
+                                                return {amount: _amount};
                                             }
-                                        }
 
-                                        function _getDateStr() {
-                                            let _txt_cvr = $$sel.pickup(_w_cvr, 'txt');
-                                            let _date_str = '';
-                                            void _w_lst.children().some((child) => {
-                                                if (child.childCount()) {
-                                                    return (
-                                                        $$sel.pickup([child, 'c1>1'], 'txt') ||
-                                                        $$sel.pickup([child, 'c0>1'], 'txt')
-                                                    ) === _txt_cvr;
-                                                }
-                                                _date_str = $$sel.pickup(child, 'txt');
-                                            });
-                                            return _date_str;
-                                        }
-                                    }
-                                }
-                            }
-
-                            function _collect() {
-                                _fri.thd_info_collect.join();
-                                $$link(_pick).$(_db);
-
-                                // tool function(s) //
-
-                                function _pick() {
-                                    if (_fri.trig_pick) {
-                                        let _eballs = _fri.eballs.ripe;
-                                        if (_eballs.length) {
-                                            _clickAndCount('pick', _eballs);
-                                        } else {
-                                            debugInfo('没有可收取的能量球');
-                                        }
-                                    }
-                                }
-
-                                function _db() {
-                                    let _pick = _collect['cnt_pick'] || 0;
-                                    if (_pick) {
-                                        let _name = $$af.nick || '%NULL%';
-                                        let _ts = $$app.ts_sec;
-                                        $$db.insert$([_name, _ts, _pick]);
-                                    }
-                                }
-
-                                /**
-                                 * @param {'pick'} act
-                                 * @param {EnergyBallsInfo[]} data
-                                 */
-                                function _clickAndCount(act, data) {
-                                    let _prop = {
-                                        pick: {
-                                            src_pref: '收取',
-                                            act_desc: '收取',
-                                            ball_desc: '成熟能量球',
-                                            pk_kw: '你收取TA',
-                                            accu_key: 'emount_c_fri',
+                                            function _matchFetchedGrams(s) {
+                                                return s.slice(s.lastIndexOf('收取')).match(/\d+(?=g)/);
+                                            }
                                         },
-                                    };
-
-                                    let _cfg = _prop[act];
-                                    let _ctr = threadsx.atomic(0);
-                                    let _res = threadsx.atomic(-1);
-
-                                    let _thds = {
-                                        fx: {
-                                            pk: {
-                                                w_name: 'PK面板',
-                                                condition: () => $$sel.pickup(_cfg.pk_kw),
-                                                getSum(agent) {
-                                                    return agent.stab - agent.init;
-                                                },
-                                                getEmount() {
-                                                    let _max = 10;
-                                                    while (_max--) {
-                                                        let _txt = $$sel.pickup(
-                                                            [_cfg.pk_kw, 's>1'], 'txt'
-                                                        );
-                                                        if (_txt.match(/\d+\s?(kg|t)/)) {
-                                                            debugInfo('放弃低精度参照值');
-                                                            return NaN;
+                                        /** @returns {number} amount of items added to the feed */
+                                        getEmount() {
+                                            let _w_list = this.getListWidget();
+                                            if (_w_list) {
+                                                let _txt = (w, c) => $$sel.pickup([w, c], 'txt');
+                                                if (this.benchmark === undefined) {
+                                                    this.benchmark = (() => {
+                                                        let _txt = (w, c) => $$sel.pickup([w, c], 'txt');
+                                                        if (_txt(_w_list, 'c0') !== this.text.TODAY) {
+                                                            return this.text.NO_BENCHMARK;
                                                         }
-                                                        let _mch = _txt.match(/\d+/);
-                                                        if (_mch) {
-                                                            return +_mch[0];
-                                                        }
-                                                    }
-                                                    return NaN;
-                                                },
-                                            },
-                                            feed: {
-                                                w_name: '动态列表',
-                                                condition: () => $$sel.get('list'),
-                                                getSum(agent) {
-                                                    let _sum = 0;
-                                                    let _max = agent.stab - agent.init;
-                                                    let _lst = $$sel.get('list', 'cache');
-                                                    let _ii = this.item_idx || 0;
-                                                    for (let i = 1; i <= _max; i += 1) {
-                                                        let _c = 'c' + i + 'c' + _ii + 'c1';
-                                                        let _s = $$sel.pickup([_lst, _c], 'txt');
-                                                        let _mch = _s.match(/\d+/);
-                                                        _sum += _mch ? +_mch[0] : 0;
-                                                    }
-                                                    return _sum;
-                                                },
-                                                getEmount() {
-                                                    let _w_lst = null;
-                                                    let _this = this;
-                                                    let _sel_lst = () => _w_lst = $$sel.get('list');
-                                                    if (!waitForAction(_sel_lst, 1.2e3, 100)) {
+                                                        return this.getItemSummary('c1');
+                                                    })();
+                                                    return 0;
+                                                }
+                                                if (this.benchmark === this.text.NO_BENCHMARK) {
+                                                    if (_txt(_w_list, 'c0') !== this.text.TODAY) {
                                                         return NaN;
                                                     }
-                                                    let _str = (w, c) => $$sel.pickup([w, c], 'txt');
-                                                    if (_str(_w_lst, 'c0') !== '今天') {
-                                                        return 0;
-                                                    }
-                                                    return _getItemsLen();
-
-                                                    // tool function(s) //
-
-                                                    function _getItemsLen() {
-                                                        let _chkC0 = w => _str(w, 'c0') === $$app.user_nickname;
-                                                        let _chkC1 = w => _str(w, 'c1').match(/^收取\d+g$/);
-                                                        let _i = 1;
-                                                        for (let l = _w_lst.childCount(); _i < l; _i += 1) {
-                                                            let _c = 'c' + _i + 'c' + _getItemIdx();
-                                                            let _w = $$sel.pickup([_w_lst, _c]);
-                                                            if (!_w || !_chkC0(_w) || !_chkC1(_w)) {
-                                                                break;
-                                                            }
-                                                        }
-                                                        return _i - 1;
-
-                                                        // tool function(s) //
-
-                                                        function _getItemIdx() {
-                                                            if ($$und(_this.item_idx)) {
-                                                                let _w = $$sel.pickup([_w_lst, 'c1']);
-                                                                let _len = _w.childCount();
-                                                                for (let i = 0; i < _len; i += 1) {
-                                                                    if (_w.child(i).childCount()) {
-                                                                        _this.item_idx = i;
-                                                                        break;
-                                                                    }
-                                                                }
-                                                            }
-                                                            return _this.item_idx;
-                                                        }
-                                                    }
-                                                },
-                                            },
-                                        },
-                                        pool: [],
-                                        startAll() {
-                                            Object.values(this.fx).forEach((fxo) => {
-                                                this.pool.push({
-                                                    name: _cfg.src_pref + fxo.w_name,
-                                                    f: threads.start(_thdMaker(fxo)),
-                                                });
-                                            });
-                                        },
-                                        killAll() {
-                                            this.pool.forEach((o) => {
-                                                if (o.f.isAlive()) {
-                                                    debugInfo('中断' + o.name + '数据统计线程');
-                                                    o.f.interrupt();
+                                                    let _ctr = 0;
+                                                    _w_list.children().slice(1).every((w) => {
+                                                        return (_ctr += 1) && w.childCount() > 0;
+                                                    });
+                                                    return _ctr - 1;
                                                 }
+                                                for (let i = 1, l = _w_list.childCount(); i < l; i += 1) {
+                                                    if (this.getItemSummary('c' + i) === this.benchmark) {
+                                                        return i - 1;
+                                                    }
+                                                }
+                                            }
+                                            return NaN;
+                                        },
+                                        getItemSummary(compass) {
+                                            let _w_list = this.w_list || this.getListWidget();
+                                            return (function _getText(w) {
+                                                return w.childCount()
+                                                    ? w.children().map(_getText).join('\ufeff')
+                                                    : $$sel.pickup(w, 'txt');
+                                            })($$sel.pickup([_w_list, compass]));
+                                        },
+                                    },
+                                };
+                                let _thds = {
+                                    fx: _strategies,
+                                    pool: [],
+                                    startAll() {
+                                        Object.values(this.fx).forEach((fxo) => {
+                                            this.pool.push({
+                                                name: _cfg.src_pref + fxo.desc,
+                                                f: threadsx.start(_thdMaker(fxo)),
                                             });
-                                        },
-                                        isAllDead() {
-                                            return this.pool.every(o => !o.f.isAlive());
-                                        },
-                                        ready(agent) {
-                                            let _name = agent.src_name;
-                                            let _init = agent.getEmount();
-                                            debugInfo('初始' + _name + '数据: ' + _init);
-
-                                            _ctr.incrementAndGet();
-
-                                            if (isNaN(_init)) {
-                                                return debugInfo('初始' + _name + '数据无效');
+                                        });
+                                    },
+                                    killAll() {
+                                        this.pool.forEach((o) => {
+                                            if (o.f.isAlive()) {
+                                                debugInfo('中断' + o.name + '数据统计线程');
+                                                o.f.interrupt();
                                             }
-                                            agent.init_emount = _init;
+                                        });
+                                    },
+                                    isAllDead() {
+                                        return this.pool.every(o => !o.f.isAlive());
+                                    },
+                                    ready(agent) {
+                                        let _name = agent.src_name;
+                                        let _init = agent.getEmount();
+                                        debugInfo('初始' + _name + '数据: ' + _init);
 
+                                        _ctr.incrementAndGet();
+
+                                        if (isNaN(_init)) {
+                                            return debugInfo('初始' + _name + '数据无效');
+                                        }
+                                        agent.init_emount = _init;
+
+                                        return true;
+                                    },
+                                    stable(agent) {
+                                        let _name = agent.src_name;
+                                        let _init = agent.init_emount;
+
+                                        debugInfo('等待' + _name + '数据稳定');
+                                        let _stab = stabilizer(agent.getEmount.bind(agent), _init);
+
+                                        if (!isNaN(_stab)) {
+                                            agent.stable_emount = _stab;
+                                            debugInfo(_name + '数据已稳定: ' + _stab);
                                             return true;
-                                        },
-                                        stable(agent) {
-                                            let _name = agent.src_name;
-                                            let _init = agent.init_emount;
+                                        }
+                                        debugInfo(_name + '稳定数据无效');
+                                    },
+                                };
 
-                                            debugInfo('等待' + _name + '数据稳定');
-                                            let _stab = stabilizer(agent.getEmount, _init);
+                                _thds.startAll();
 
-                                            if (!isNaN(_stab)) {
-                                                agent.stable_emount = _stab;
-                                                debugInfo(_name + '数据已稳定: ' + _stab);
-                                                return true;
-                                            }
-                                            debugInfo(_name + '稳定数据无效');
-                                        },
-                                    };
+                                _ready() && $$link(_click).$(_stat);
 
-                                    _thds.startAll();
+                                // tool function(s) //
+
+                                function _ready() {
+                                    let _max = 60;
+                                    while (1) {
+                                        if (_ctr.get()) {
+                                            return true;
+                                        }
+                                        if (!_max-- || _thds.isAllDead()) {
+                                            return messageAction('数据统计初始化失败', 3);
+                                        }
+                                        sleep(50);
+                                    }
+                                }
+
+                                function _click() {
+                                    let _desc = _cfg.ball_desc;
+                                    let _du = $$cfg.forest_balls_click_duration;
+
+                                    debugInfo('点击' + _desc + ': ' + data.length + '个');
+
+                                    data.forEach((o) => {
+                                        clickAction(o, 'p', {pt$: _du});
+                                        sleep($$cfg.forest_balls_click_interval);
+                                    });
+
                                     $$flag.avail_clicked = true;
                                     $$flag.avail_clicked_pick = act === 'pick';
+                                    $$app.fri_drop_by.dc($$af.nick);
+                                }
 
-                                    _ready() && $$link(_click).$(_stat);
+                                function _stat() {
+                                    waitForAction(() => ~_res.get(), 2.4e3, 80);
 
-                                    // tool function(s) //
+                                    let _sum = _res.get();
+                                    let _act = _cfg.act_desc;
+                                    let _accu = _cfg.accu_key;
 
-                                    function _ready() {
-                                        let _max = 60;
-                                        while (1) {
-                                            if (_ctr.get()) {
-                                                return true;
-                                            }
-                                            if (!_max-- || _thds.isAllDead()) {
-                                                return messageAction('数据统计初始化失败', 3);
-                                            }
-                                            sleep(50);
-                                        }
+                                    _thds.killAll();
+
+                                    if (~_sum) {
+                                        $$af[_accu] += _accu ? _sum : 0;
+                                        _harvest['cnt_' + act] = _sum;
+                                        let _dbl = $$flag.dblclick_checked ? ' (双击卡)' : '';
+                                        messageAct(_act + ': ' + _sum + 'g' + _dbl, +!!_sum, 0, 1);
+                                    } else {
+                                        messageAct(_act + ': 统计数据无效', 0, 0, 1);
                                     }
+                                }
 
-                                    function _click() {
-                                        let _desc = _cfg.ball_desc;
-                                        let _du = $$cfg.forest_balls_click_duration;
-
-                                        debugInfo('点击' + _desc + ': ' + data.length + '个');
-
-                                        data.forEach((o) => {
-                                            clickAction(o, 'p', {pt$: _du});
-                                            sleep($$cfg.forest_balls_click_interval);
-                                        });
-
-                                        $$flag.rl_valid_click = true;
-                                        $$app.fri_drop_by.dc($$af.nick);
-                                    }
-
-                                    function _stat() {
-                                        waitForAction(() => ~_res.get(), 2.4e3, 80);
-
-                                        let _sum = _res.get();
-                                        let _act = _cfg.act_desc;
-                                        let _accu = _cfg.accu_key;
-
-                                        _thds.killAll();
-
-                                        if (~_sum) {
-                                            $$af[_accu] += _accu ? _sum : 0;
-                                            _collect['cnt_' + act] = _sum;
-                                            let _dbl = $$flag.dblclick_checked ? ' (双击卡)' : '';
-                                            messageAct(_act + ': ' + _sum + 'g' + _dbl, +!!_sum, 0, 1);
-                                        } else {
-                                            messageAct(_act + ': 统计数据无效', 0, 0, 1);
-                                        }
-                                    }
-
-                                    function _thdMaker(fxo) {
-                                        let _maker = {
-                                            init: NaN,
-                                            stab: NaN,
-                                            agent: {
-                                                src_name: _cfg.src_pref + fxo.w_name,
-                                                init_emount: NaN,
-                                                stable_emount: NaN,
-                                                getEmount: fxo.getEmount.bind(fxo),
-                                            },
-                                            ready() {
-                                                let _agt = this.agent;
-                                                if (waitForAction(fxo.condition, 3e3, 50)) {
-                                                    if (_thds.ready(_agt)) {
-                                                        this.init = _agt.init_emount;
-                                                        return true;
-                                                    }
-                                                } else {
-                                                    debugInfo(_agt.src_name + '控件准备超时', 3);
-                                                }
-                                            },
-                                            stable() {
-                                                if (_thds.stable(this.agent)) {
-                                                    this.stab = this.agent.stable_emount;
+                                function _thdMaker(fxo) {
+                                    let _maker = {
+                                        init: NaN,
+                                        stab: NaN,
+                                        agent: {
+                                            src_name: _cfg.src_pref + fxo.desc,
+                                            init_emount: NaN,
+                                            stable_emount: NaN,
+                                            getEmount: fxo.getEmount.bind(fxo),
+                                        },
+                                        ready() {
+                                            let _agt = this.agent;
+                                            if (waitForAction(fxo.condition, 3e3, 50)) {
+                                                if (_thds.ready(_agt)) {
+                                                    this.init = _agt.init_emount;
                                                     return true;
                                                 }
-                                            },
-                                            stat() {
-                                                let _n = fxo.getSum(this);
-                                                _res.compareAndSet(-1, _n);
-                                                debugInfo(this.agent.src_name + '统计结果: ' + _n);
-                                            },
-                                            fx() {
-                                                this.ready() && this.stable() && this.stat();
-                                            },
-                                        };
-                                        return new java.lang.Runnable({run: _maker.fx.bind(_maker)});
-                                    }
+                                            } else {
+                                                debugInfo(_agt.src_name + '控件准备超时', 3);
+                                            }
+                                        },
+                                        stable() {
+                                            if (_thds.stable(this.agent)) {
+                                                this.stab = this.agent.stable_emount;
+                                                return true;
+                                            }
+                                        },
+                                        stat() {
+                                            let _n = fxo.getSum(this);
+                                            _res.compareAndSet(-1, _n);
+                                            debugInfo(this.agent.src_name + '统计结果: ' + _n);
+                                        },
+                                        fx() {
+                                            this.ready() && this.stable() && this.stat();
+                                        },
+                                    };
+                                    return new java.lang.Runnable({run: _maker.fx.bind(_maker)});
+                                }
+                            }
+                        }
+
+                        function _reentry() {
+                            let _ln = '__split_line__';
+                            if ($$flag.avail_clicked_pick && _dblclickCardExists()) {
+                                if (!$$flag.dblclick_checked) {
+                                    debugInfo([_ln, '开始双击卡复查', _ln]);
+                                    return $$flag.dblclick_checked = true;
                                 }
                             }
 
-                            function _reentry() {
-                                let _ln = '__split_line__';
-                                if ($$flag.avail_clicked_pick && _dblclickCardExists()) {
-                                    if (!$$flag.dblclick_checked) {
-                                        debugInfo([_ln, '开始双击卡复查', _ln]);
-                                        return $$flag.dblclick_checked = true;
-                                    }
+                            // tool function(s) //
+
+                            function _dblclickCardExists() {
+                                if ($$app.dblclick_card_expired_ts - $$app.ts > 0) {
+                                    return _showInfo() || true;
+                                }
+                                let _t_rex = /\D*[0-5]\d:\d{2}\s*/;
+                                let _wc = $$sel.pickup(_t_rex, 'wc').filter((w) => {
+                                    let _x = cX(50), _y = cYx(70), _d = 0.2;
+                                    let _b = w.bounds(), _h = _b.height(), _w = _b.width();
+                                    return $$num(_x * (1 - _d), '<', _w, '<', _x * (1 + _d))
+                                        && $$num(_y * (1 - _d), '<', _h, '<', _y * (1 + _d));
+                                });
+                                if (_wc.length > 0) {
+                                    $$app.dblclick_card_expired_ts = _getExpiredTs(_wc);
+                                    return _showInfo() || true;
                                 }
 
                                 // tool function(s) //
 
-                                function _dblclickCardExists() {
-                                    if ($$app.dblclick_card_expired_ts - $$app.ts > 0) {
-                                        return _showInfo() || true;
-                                    }
-                                    let _t_rex = /\D*[0-5]\d:\d{2}\s*/;
-                                    let _wc = $$sel.pickup(_t_rex, 'wc').filter((w) => {
-                                        let _x = cX(50), _y = cYx(70), _d = 0.2;
-                                        let _b = w.bounds(), _h = _b.height(), _w = _b.width();
-                                        return $$num(_x * (1 - _d), '<', _w, '<', _x * (1 + _d))
-                                            && $$num(_y * (1 - _d), '<', _h, '<', _y * (1 + _d));
-                                    });
-                                    if (_wc.length > 0) {
-                                        $$app.dblclick_card_expired_ts = _getExpiredTs(_wc);
-                                        return _showInfo() || true;
-                                    }
+                                function _getExpiredTs(wc) {
+                                    wc.length > 1
+                                        ? debugInfo('匹配到多个双击卡控件', 3)
+                                        : debugInfo('匹配到双击卡控件');
+                                    let [_mm, _ss] = $$sel.pickup(wc[0], 'txt').match(_t_rex)[0]
+                                        .split(':').map(s => Number(s.match(/\d+/)[0]));
+                                    return $$app.ts + _mm * 60e3 + _ss * 1e3;
+                                }
 
-                                    // tool function(s) //
-
-                                    function _getExpiredTs(wc) {
-                                        wc.length > 1
-                                            ? debugInfo('匹配到多个双击卡控件', 3)
-                                            : debugInfo('匹配到双击卡控件');
-                                        let [_mm, _ss] = $$sel.pickup(wc[0], 'txt').match(_t_rex)[0]
-                                            .split(':').map(s => Number(s.match(/\d+/)[0]));
-                                        return $$app.ts + _mm * 60e3 + _ss * 1e3;
-                                    }
-
-                                    function _showInfo() {
-                                        let _gap = $$app.dblclick_card_expired_ts - $$app.ts;
-                                        let _ctd_str = $$cvt.date(_gap, 'mm:ss');
-                                        debugInfo('双击卡生效中 (剩余' + _ctd_str + ')');
-                                    }
+                                function _showInfo() {
+                                    let _gap = $$app.dblclick_card_expired_ts - $$app.ts;
+                                    let _ctd_str = $$cvt.date(_gap, 'mm:ss');
+                                    debugInfo('双击卡生效中 (剩余' + _ctd_str + ')');
                                 }
                             }
                         }
+                    }
 
-                        function _back() {
-                            $$app.page.rl.backTo();
+                    function _coda() {
+                        if (!$$flag.avail_clicked) {
+                            messageAct('无能量球可操作', 0, 0, 1);
                         }
-
-                        function _coda() {
-                            if (!$$flag.avail_clicked) {
-                                messageAct('无能量球可操作', 0, 0, 1);
+                        if ($$af.stroll.trigger()) {
+                            if ($$flag.avail_clicked) {
+                                debugInfo('逛一逛忽略样本集已重置');
+                                _lmt.reset();
+                            } else {
+                                debugInfo('逛一逛忽略样本集已增员');
+                                $$af.stroll.ignored.add($$af.nick);
                             }
-                            showSplitLine();
+                        }
+                        showSplitLine();
 
-                            delete $$af.nick;
-                            delete $$flag.dblclick_checked;
-                            $$app.page.fri.pool.clear();
-                            $$app.monitor.expand_feed.interrupt(); // just in case
+                        delete $$af.nick;
+                        delete $$flag.dblclick_checked;
+                        delete $$flag.avail_clicked;
+                        delete $$flag.avail_clicked_pick;
+                        $$app.page.fri.pool.clear();
+                        $$app.monitor.expand_feed.interrupt(); // just in case
+                    }
+
+                    function _byStroll() {
+                        let _enter = () => {
+                            debugInfo('点击逛一逛按钮');
+                            $$af.stroll.click();
+                        };
+                        let _ready = () => {
+                            let _thd_title = threadsx.start(_title);
+                            let _is_slake = false;
+                            let _thd_slake = threadsx.start(function () {
+                                return waitForAction(() => {
+                                    return _is_slake = $$af.stroll.isInSlakePage();
+                                }, 18e3, 80);
+                            });
+                            waitForAction(() => {
+                                return !_thd_title.isAlive() || !_thd_slake.isAlive();
+                            });
+                            if (_is_slake) {
+                                debugInfo('终止逛一逛采集流程');
+                                debugInfo('>检测到逛一逛结束页面');
+                                return '__break__';
+                            }
+                        };
+                        $$link(_enter).$(_ready).$(_intro).$(_collect).$(_coda);
+                    }
+
+                    function _byRankList() {
+                        _lmt.reset();
+                        _fri.tar.forEach(_act);
+                        _fri.tar.splice(0);
+
+                        // tool function(s) //
+
+                        function _act(items) {
+                            let _item = null;
+                            let _next = () => _item = items.pop();
+                            let _back = () => {
+                                $$app.page.rl.backTo();
+                            };
+                            let _enter = () => {
+                                debugInfo('点击' + _item.act_desc + '目标');
+                                clickAction([halfW, _item.item_y], 'p', {pt$: 64, bt$: 500});
+                            };
+
+                            while (_next()) {
+                                $$link(_enter).$(_title).$(_intro).$(_collect).$(_back).$(_coda);
+                            }
                         }
                     }
                 }
@@ -5751,32 +5906,32 @@ let $$af = {
                         debugInfo('检测到排行榜停检信号');
                         return true;
                     }
-                    if (!_lmt()) {
-                        debugInfo('无目标滑动次数已达上限');
+                    if (_lmt.trigger()) {
+                        _lmt.message();
                         return true;
                     }
-                }
-
-                function _lmt(reset) {
-                    if (!reset) {
-                        return _max_no_tar_swp--;
-                    }
-                    _max_no_tar_swp = _max_no_tar_swp_bak;
                 }
 
                 function _fin() {
                     let _swA = $$cfg.timers_switch;
                     let _swB = $$cfg.timers_self_manage_switch;
                     let _swC = $$cfg.timers_countdown_check_friends_switch;
-                    let _cond = _swA && _swB && _swC;
 
-                    if (!_cond) {
-                        $$af.min_ctd_fri = Infinity;
-                    } else if (isInfinite($$af.min_ctd_fri)) {
+                    if (!(_swA && _swB && _swC)) {
+                        $$af.min_ctd.fri.reset();
+                    } else if (!isFinite($$af.min_ctd.fri.value)) {
+                        if ($$af.stroll.trigger()) {
+                            $$app.page.rl.launch({is_show_greeting: false});
+                            $$af.rl.swipe.toBottom();
+                        }
                         _fri._chkMinCtd('cache');
                     }
 
                     _awake() ? _reboot() : debugInfo('好友能量检查完毕');
+                }
+
+                function _roll() {
+                    return !$$af.stroll.trigger();
                 }
 
                 function _swipe() {
@@ -5787,67 +5942,9 @@ let $$af = {
                     function _swipeUp() {
                         $$impeded('排行榜滑动流程');
 
-                        // just to prevent screen from turning off
-                        // maybe this is not a good idea
-                        let _preventSleep = () => click(1e5, 1e5);
-
-                        let _et_scan = timeRecorder('rl_scan', 'L') || 0;
-                        let _stg = $$cfg.rank_list_scan_strategy;
-
-                        _stg === 'swipe' ? _bySwipe() : _byScroll();
-
-                        // tool function(s) //
-
-                        function _byScroll() {
-                            let _itv = $$cfg.rank_list_scroll_interval.clamp(100, 2.4e3);
-                            let _ls = scrollable(true).findOnce();
-                            _ls && _ls.scrollDown() && _preventSleep();
-                            $$sleep(_itv - _et_scan);
-                        }
-
-                        function _bySwipe() {
-                            let _itv = $$cfg.rank_list_swipe_interval.clamp(100, 2.4e3);
-                            let _du = $$cfg.rank_list_swipe_time.clamp(100, 2.4e3);
-                            let _dist = $$cfg.rank_list_swipe_distance;
-                            if (_dist < 1) {
-                                _dist = Math.trunc(_dist * H);
-                            }
-                            let _top = Math.trunc((uH - _dist) / 2);
-                            _top <= 0 && _autoAdjust();
-                            let _btm = uH - _top;
-
-                            _swipeOnce();
-
-                            // tool function(s) //
-
-                            function _autoAdjust() {
-                                let _dist0 = Math.trunc(uH * 0.95);
-                                let _top0 = Math.trunc((uH - _dist0) / 2);
-                                let _af_cfg = $$sto.af_cfg.get('config', {});
-                                let _data = {rank_list_swipe_distance: _dist0};
-                                let _combined = Object.assign({}, _af_cfg, _data);
-
-                                messageAction('滑动区域超限', 3);
-
-                                _top = _top0;
-                                messageAction('自动修正滑动距离参数:', 3);
-                                messageAction('swipe_top: ' + _top0, 3);
-
-                                $$sto.af_cfg.put('config', _combined);
-                                $$cfg.rank_list_swipe_distance = _dist0;
-                                messageAction('自动修正配置文件数据:', 3);
-                                messageAction('rank_list_swipe_distance: ' + _dist0, 3);
-                            }
-
-                            function _swipeOnce() {
-                                if (swipe(halfW, _btm, halfW, _top, _du)) {
-                                    _preventSleep();
-                                } else {
-                                    messageAction('swipe(): false', 3, 0, 0, '2_dash');
-                                }
-                                $$sleep(_itv - _et_scan);
-                            }
-                        }
+                        $$af.rl.isInScrollMode()
+                            ? $$af.rl.scroll.scroll({bt$: true})
+                            : $$af.rl.swipe.swipe({bt$: true});
                     }
 
                     function _chkCaptDiff() {
@@ -5949,12 +6046,11 @@ let $$af = {
 
                     function _chkInvtBtn() {
                         let _color = '#30bf6c';
-                        let _mch = images.findMultiColors(
-                            _rl.capt_img, _color, _rl.invt_colors || _invtColors(), {
-                                region: [cX(0.71), cY(0.62), cX(0.28), cY(0.37)],
-                                threshold: 10,
-                            }
-                        );
+                        let _paths = _rl.invt_colors || _invtColors();
+                        let _mch = images.findMultiColors(_rl.capt_img, _color, _paths, {
+                            region: [cX(0.71), cY(0.62), cX(0.28), cY(0.37)],
+                            threshold: 10,
+                        });
                         if (_mch) {
                             debugInfo(['列表底部条件满足', '>区域内匹配邀请按钮颜色成功']);
                             $$flag.rl_bottom_rch = true;
@@ -5991,10 +6087,40 @@ let $$af = {
                         }
                     }
                 }
+
+                function _limitationSetter() {
+                    return $$af.stroll.trigger() ? {
+                        reset() {
+                            $$af.stroll.reset();
+                        },
+                        trigger() {
+                            return $$af.stroll.isSlake();
+                        },
+                        message() {
+                            if ($$af.stroll.isMaxCntCycleReached()) {
+                                debugInfo('逛一逛无操作循环次数已达上限', 3);
+                            }
+                        },
+                    } : {
+                        reset() {
+                            this.counter = $$cfg.rank_list_max_not_targeted_times;
+                        },
+                        trigger() {
+                            $$und(this.counter) && this.reset();
+                            return --this.counter < 0;
+                        },
+                        message() {
+                            debugInfo('无目标滑动次数已达上限', 3);
+                        },
+                    };
+                }
             },
             review() {
                 let _m_quit = '放弃排行榜样本复查:';
 
+                if ($$af.stroll.trigger()) {
+                    return;
+                }
                 if (!$$cfg.timers_switch) {
                     return debugInfo([_m_quit, '定时循环功能未开启']);
                 }
@@ -6019,7 +6145,7 @@ let $$af = {
                     }
                 }
                 if ($$cfg.rank_list_review_samples_clicked_switch) {
-                    if ($$flag.rl_valid_click) {
+                    if ($$flag.avail_clicked) {
                         return _trig('样本点击记录');
                     }
                 }
@@ -6030,7 +6156,7 @@ let $$af = {
                 }
             },
             reboot() {
-                this.init().launch().collect();
+                this.init().collect();
             },
         },
     },
@@ -6047,8 +6173,8 @@ let $$af = {
         autoTask() {
             let _ahd_own = $$cfg.timers_countdown_check_own_timed_task_ahead;
             let _ahd_fri = $$cfg.timers_countdown_check_friends_timed_task_ahead;
-            let _min_own = ($$af.min_ctd_own || Infinity) - _ahd_own * 60e3;
-            let _min_fri = ($$af.min_ctd_fri || Infinity) - _ahd_fri * 60e3;
+            let _min_own = $$af.min_ctd.own.value - _ahd_own * 60e3;
+            let _min_fri = $$af.min_ctd.fri.value - _ahd_fri * 60e3;
             let _nxt_min_ctd = Math.min(_min_own, _min_fri);
             let _nxt_unintrp = _nxtUnintrp() || Infinity;
 
@@ -6266,9 +6392,9 @@ let $$af = {
                     debugInfo('自己能量收取值: ' + _e_own);
                     debugInfo('好友能量收取值: ' + _e_fri);
                     showSplitLineForDebugInfo();
-                    return _e_own >= 0 && _e_fri >= 0
-                        ? reso(_showMsg(_eStr(_e_fri, _e_own)))
-                        : reso(_showMsg('数据统计失败'));
+                    _e_own >= 0 && _e_fri >= 0
+                        ? _showMsg(_eStr(_e_fri, _e_own))
+                        : _showMsg('数据统计失败');
                 }
                 return reso();
 
@@ -6290,9 +6416,7 @@ let $$af = {
                     if (msg.match(/失败/)) {
                         _e_own = -1;
                     }
-                    $$cfg.floaty_result_switch
-                        ? _floatyResult()
-                        : _toastResult();
+                    $$cfg.floaty_result_switch ? _floatyResult() : _toastResult();
 
                     // tool function(s) //
 
@@ -6591,12 +6715,10 @@ let $$af = {
                         if ($$flag.floaty_result_set) {
                             $$app.layout.screen_turning_off.deploy();
                         } else {
-                            $$toast(
-                                '正在尝试关闭屏幕...\n' +
-                                '此过程可能需要几秒钟...\n\n' +
-                                '触摸屏幕任意区域\n' +
-                                '或按下任意按键可终止关屏', 'Long'
-                            );
+                            $$toast([
+                                '正在尝试关闭屏幕...', '此过程可能需要几秒钟...\n',
+                                '触摸屏幕任意区域', '或按下任意按键可终止关屏',
+                            ].join('\n'), 'Long');
                         }
                     }
 
@@ -6744,6 +6866,144 @@ let $$af = {
             this.exitNow();
         },
     },
+    rl: {
+        scroll: {
+            get itv() {
+                return $$cfg.rank_list_scroll_interval.clamp(100, 2.4e3);
+            },
+            /**
+             * @param {Object} [options]
+             * @param {boolean} [options.no_debug_info=false]
+             * @param {number} [options.itv=this.itv] - interval
+             * @param {number|boolean} [options.buffer_time=0]
+             * @param {number|boolean} [options.bt$=0] - alias for buffer_time
+             * @param {function():boolean} [options.loop]
+             */
+            scroll(options) {
+                let _opt = options || {};
+                let _itv = _opt.itv === undefined ? this.itv : _opt.itv;
+
+                let _1st = 1;
+
+                do {
+                    _1st ? _1st &= 0 : sleep(_itv);
+                    let _ls = scrollable(true).findOnce();
+                    if (_ls) {
+                        _ls.scrollDown();
+                    } else {
+                        _opt.no_debug_info || debugInfo('scrollable(): null', 3);
+                    }
+                } while (_opt.loop && _opt.loop());
+
+                let _bt = _opt.buffer_time || _opt.bt$ || 0;
+                $$sleep(_bt === true || _bt === -1 ? _itv : _bt);
+            },
+            toBottom(timeout) {
+                let _this = this;
+                let _thd = threadsx.start(function () {
+                    _this.scroll({loop: () => !$$flag.rl_bottom_rch});
+                });
+                $$app.monitor.rl_bottom.start().join(timeout || 5 * 60e3);
+                _thd.interrupt();
+            },
+        },
+        swipe: {
+            get du() {
+                return $$cfg.rank_list_swipe_time.clamp(100, 2.4e3);
+            },
+            get itv() {
+                return $$cfg.rank_list_swipe_interval.clamp(100, 2.4e3);
+            },
+            get dist() {
+                let _dist = $$cfg.rank_list_swipe_distance;
+                if (_dist < 1) {
+                    _dist = Math.trunc(_dist * H);
+                }
+                return _dist;
+            },
+            get top() {
+                let _top = Math.trunc((uH - this.dist) / 2);
+                return _top > 0 ? _top : this.autoAdjust();
+            },
+            get bottom() {
+                return uH - this.top;
+            },
+            /**
+             * @param {Object} [options]
+             * @param {boolean} [options.no_click_outside=false]
+             * @param {boolean} [options.no_debug_info=false]
+             * @param {number} [options.x1=halfW]
+             * @param {number} [options.y1=this.bottom]
+             * @param {number} [options.x2=halfW]
+             * @param {number} [options.y2=this.top]
+             * @param {number} [options.du=this.du] - duration
+             * @param {number} [options.itv=this.itv] - interval
+             * @param {number|boolean} [options.buffer_time=0]
+             * @param {number|boolean} [options.bt$=0] - alias for buffer_time
+             * @param {function():boolean} [options.loop]
+             */
+            swipe(options) {
+                let _opt = options || {};
+
+                let _ = (v, d) => v === undefined ? d : v;
+                let _x1 = _(_opt.x1, halfW);
+                let _y1 = _(_opt.y1, this.bottom);
+                let _x2 = _(_opt.x2, halfW);
+                let _y2 = _(_opt.y2, this.top);
+                let _du = _(_opt.du, this.du);
+                let _itv = _(_opt.itv, this.itv);
+
+                let _1st = 1;
+
+                do {
+                    _1st ? _1st &= 0 : sleep(_itv);
+                    if (!swipe(_x1, _y1, _x2, _y2, _du)) {
+                        _opt.no_debug_info || debugInfo('swipe(): false', 3);
+                    } else if (!_opt.no_click_outside) {
+                        // just to prevent screen from turning off
+                        // maybe this is not a good idea
+                        click(1e5, 1e5);
+                    }
+                } while (_opt.loop && _opt.loop());
+
+                let _bt = _opt.buffer_time || _opt.bt$ || 0;
+                $$sleep(_bt === true || _bt === -1 ? _itv : _bt);
+            },
+            autoAdjust() {
+                let _dist0 = Math.trunc(uH * 0.95);
+                let _top0 = Math.trunc((uH - _dist0) / 2);
+                let _af_cfg = $$sto.af_cfg.get('config', {});
+                let _data = {rank_list_swipe_distance: _dist0};
+                let _combined = Object.assign({}, _af_cfg, _data);
+
+                messageAction('滑动区域超限', 3);
+
+                messageAction('自动修正滑动距离参数:', 3);
+                messageAction('swipe_top: ' + _top0, 3);
+
+                $$sto.af_cfg.put('config', _combined);
+                $$cfg.rank_list_swipe_distance = _dist0;
+                messageAction('自动修正配置文件数据:', 3);
+                messageAction('rank_list_swipe_distance: ' + _dist0, 3);
+
+                return _top0;
+            },
+            toBottom(timeout) {
+                let _this = this;
+                let _thd = threadsx.start(function () {
+                    _this.swipe({loop: () => !$$flag.rl_bottom_rch});
+                });
+                $$app.monitor.rl_bottom.start().join(timeout || 5 * 60e3);
+                _thd.interrupt();
+            },
+        },
+        isInScrollMode() {
+            return $$cfg.rank_list_scan_strategy === 'scroll';
+        },
+        isInSwipeMode() {
+            return $$cfg.rank_list_scan_strategy === 'swipe';
+        },
+    },
     launch() {
         this._launcher.greet().assign().home().ready();
         return $$af;
@@ -6751,7 +7011,7 @@ let $$af = {
     collect() {
         let {own, fri} = this._collector;
         own.trigger() && own.init().collect();
-        fri.trigger() && fri.init().launch().collect();
+        fri.trigger() && fri.init().collect();
         return $$af;
     },
     timers() {
@@ -6767,31 +7027,40 @@ let $$af = {
             .then(_.exitNow)
             .catch(_.err);
     },
-    bind() {
+    $bind() {
         let _c = this._collector;
         _c.parent = this;
         _c.own.parent = _c.fri.parent = _c;
-        delete this.bind; // optional but recommended
+
+        this.min_ctd = {
+            own: new _$MinCtdFactory(),
+            fri: new _$MinCtdFactory(),
+        };
+
+        delete this.$bind;// optional but recommended
+
         return this;
+
+        // constructor(s) //
+
+        function _$MinCtdFactory() {
+            return {
+                reset() {
+                    this.value = Infinity;
+                },
+                get value() {
+                    this._value === undefined && this.reset();
+                    return this._value;
+                },
+                set value(val) {
+                    this._value = val;
+                },
+            };
+        }
     },
-}.bind();
+};
 
 // entrance //
 $$init.check().global().queue().delay().monitor().unlock().prompt().command();
 
-$$af.launch().collect().timers().epilogue();
-
-/**
- * @appendix Code abbreviation dictionary
- * May be helpful for code readers and developers
- * Not all items showed up in this project
- * @glossary a11y: accessibility | acc: account | accu: accumulated | act: action; activity | addn: addition; additional | af: ant forest | agn: again | ahd: ahead | amt: amount | anm: animation | app: application | arci: archive(d) | args: arguments | argv: argument values | asg: assign | asgmt: assignment | async: asynchronous | avail: available | avt: avatar | b: bottom; bounds; backup; bomb | bak: backup | bd: bound(s) | blist: blacklist | blt: bilateral | bnd: bound(s) | bo: bitmap options | btm: bottom | btn: button | buf: buffer | c: compass; coordination(s) | cbk: callback | cf: comparison (latin: conferatur) | cfg: configuration | cfm: confirm | chk: check | clk: click; clicked | cln: clean | clp: clip | cmd: command | cnsl: console | cnt: content; count | cntr: container | col: color | compr: compress(ed) | cond: condition | constr: constructor | coord: coordination(s) | ctd: countdown | ctr: counter | ctx: context | cur: current | cvr: cover | cwd: current working directory | cwp: current working path | cxn: connection | d: dialog | dat: data | dbg: debug | dc: decrease | dec: decode; decrypt | def: default | del: delete; deletion | desc: description | dev: device; development | diag: dialog | dic: dictionary | diff: difference | dis: dismiss | disp: display | dist: distance; disturb; disturbance | dn: down | dnt: donation | dny: dynamic | drxn: direction | ds: data source | du: duration | dupe: duplicate; duplicated; duplication | dys: dysfunctional | e: error; engine; event | eball(s): energy ball(s) | egy: energy | ele: element | emount: energy amount | enabl: enable; enabled | enc: encode; encrypt | ens: ensure | ent: entrance | eq: equal | eql: equal | et: elapsed time | evt: event | exc: exception | excl: exclusive | excpt: exception | exec: execution | exp: expected | ext: extension | fg: foreground; flag | fgpt: fingerprint | flg: flag | flo: floaty | fltr: filter | forc: force; forcible; forcibly | frac: fraction | fri: friend | frst: forest | fs: functions | fst: forest | fx: function | fxo: function object (an object with some functions) | gdball(s): golden ball(s) | glob: global | grn: green | gt: greater than | h: height; head(s) | his: history | horiz: horizontal | i: intent; increment | ic: increase | ident: identification | idt: identification | idx: index | ifn: if needed | inc: increment | inf: information | info: information | inp: input | ins: insurance | inst: instant | intrp: interrupt | invt: invitation | ipt: input | itball(s): initialized ball(s) | itp: interpolate | itv: interval | js: javascript | k: key | kg: keyguard | kw: keyword | l: left | lbl: label | lch: launch | len: length | lmt: limit | ln: line | ls: list | lsn(er(s)): listen; listener(s) | lv: level | lyr: layer | lyt: layout | man: manual(ly) | mch: matched | mod: module | mon: monitor | monit: monitor | msg: message | mthd: method | mv: move | n: name; nickname | nball(s): normal ball(s) | nec: necessary | neg: negative | neu: neutral | nm: name | num: number | nxt: next | o: object | opr: operation | opt: option; optional | or: orientation | org: orange | oth: other | ovl: overlap | p: press; parent | par: parameter | param: parameter | pat: pattern | pct: percentage | pg: page | pkg: package | pos: position | pref: prefix | prog: progress | prv: privilege | ps: preset | pwr: power | q: queue | qte: quote | que: queue | r: right; region | ran: random | rch: reach; reached | rec: record; recorded; rectangle | recog: recognition | rect: rectangle | relbl: reliable | req: require; request | res: result; restore | reso: resolve; resolver | resp: response | ret: return | rev: review | rl: rank list | rls: release | rm: remove | rmng: remaining | rsn: reason | rst: reset | s: second(s); stack | sav: save | sc: script | scr: screen | sec: second | sect: section | sel: selector; select(ed) | sels: selectors | set: settings | sep: separator | sgl: single | sgn: signal | simpl: simplify | sltr: selector | smp: sample | spl: special | src: source | stab: stable | stat: statistics | stg: strategy | sto: storage | stp: stripe | str: string | succ: success; successful | suff: suffix | svc: service | svr: server | sw: switch | swp: swipe | sxn: section(s) | sym: symbol | sz: size | t: top; time | tar: target | thd(s): thread(s) | thrd: threshold | tmo: timeout | tmp: temporary | tpl: template | treas: treasury; treasuries | trig: trigger; triggered | ts: timestamp | tt: title; timeout | tv: text view | txt: text | u: unit | uncompr: uncompressed | unexp: unexpected | unintrp: uninterrupted | unlk: unlock: unlocked | usr: user | util: utility | v: value | val: value | vert: vertical | w: widget | wball(s): water ball(s) | wc: widget collection | win: window
- */
-
-/**
- * @memorandums
- * @on Feb 12, 2021
- * 'Protect' function ('提醒守护功能') went online on around Dec 31, 2020
- * At the same time, 'help' function ('帮收功能') was disabled (seems permanently)
- * Thus, all code about 'help' has been removed from this project
- */
+$$af.$bind().launch().collect().timers().epilogue();

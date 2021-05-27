@@ -66,8 +66,7 @@
                     _accu_step *= _step;
                 }
                 _unit.split('|').forEach(u => unit_map[u] = _tmp_pot_val
-                    ? [_accu_step, _tmp_pot_val] : [_accu_step, _accu_step]
-                );
+                    ? [_accu_step, _tmp_pot_val] : [_accu_step, _accu_step]);
             }
 
             let _init_u = _init_unit || _units[0];
@@ -219,10 +218,8 @@
         // tool function(s) //
 
         function _parse(src, init_unit, options, presets) {
-            return $_cvt(src, Object.assign(
-                init_unit === undefined ? {} : {init_unit: init_unit},
-                presets || {}, options || {}
-            ));
+            let _init = init_unit === undefined ? {} : {init_unit: init_unit};
+            return $_cvt(src, Object.assign(_init, presets, options));
         }
     }();
 
@@ -387,7 +384,7 @@
                 }, {
                     desc: _steps.backup,
                     action: (v, d) => new Promise((resolve, reject) => {
-                        if (!_appx.getProjectLocalPath()) {
+                        if (!_appx.getProjectLocalPath() || !_appx.getProjectLocalVerName()) {
                             d.setStepDesc(3, '  [ 跳过 ]', true);
                             return resolve(v);
                         }
@@ -431,31 +428,46 @@
             if (!_path) {
                 throw Error('Cannot locate project path for appx.getProjectLocal()');
             }
-            let _json = _path + '/project.json';
-            let _main = _path + '/ant-forest-launcher.js';
-            try {
-                if (files.exists(_json)) {
-                    let _o = JSON.parse(filesx.read(_json));
-                    _main = _o.main;
-                    _ver_name = 'v' + _o.versionName;
-                    _ver_code = Number(_o.versionCode);
-                } else {
-                    _ver_name = 'v' + filesx.read(_main)
-                        .match(/version (\d+\.?)+( ?(Alpha|Beta)(\d+)?)?/)[0].slice(8);
-                }
-            } catch (e) {
-                console.warn(e.message);
-                console.warn(e.stack);
-            }
-            return {
+            let _sep = java.io.File.separator;
+            let _json_name = 'project.json';
+            let _json_path = _path + _sep + _json_name;
+            let _main_name = 'ant-forest-launcher.js';
+            let _main_path = _path + _sep + _main_name;
+            let _res = {
                 version_name: _ver_name,
                 version_code: _ver_code,
-                main: _main,
+                main: _main_path,
                 path: _path,
             };
+            if (files.exists(_json_path)) {
+                try {
+                    let _o = JSON.parse(filesx.read(_json_path));
+                    return Object.assign(_res, {
+                        version_name: 'v' + _o.versionName,
+                        version_code: Number(_o.versionCode),
+                        main: _o.main,
+                    });
+                } catch (e) {
+                    console.warn(e.message);
+                    console.warn(e.stack);
+                }
+            }
+            if (files.exists(_main_path)) {
+                try {
+                    return Object.assign(_res, {
+                        version_name: 'v' + filesx.read(_main_path)
+                            .match(/version (\d+\.?)+( ?(Alpha|Beta)(\d+)?)?/)[0].slice(8),
+                    });
+                } catch (e) {
+                    console.warn(e.message);
+                    console.warn(e.stack);
+                }
+            }
+            console.warn('Both ' + _json_name + ' and ' + _main_name + ' are not exist');
+            return _res;
         },
         /**
-         * @param {{}} [options]
+         * @param {Object} [options]
          * @param {number} [options.max_items=Infinity]
          * @param {number} [options.per_page=30]
          * @param {string} [options.min_version_name='v0.0.0']
@@ -503,8 +515,8 @@
                     try {
                         let _items = http.get('https://api.github.com/repos/' +
                             'SuperMonster003/Ant-Forest/releases' +
-                            '?per_page=' + _per_page + '&page=' + _cur_page++
-                        ).body.json().filter(o => o.tag_name >= _min_ver);
+                            '?per_page=' + _per_page + '&page=' + _cur_page++)
+                            .body.json().filter(o => o.tag_name >= _min_ver);
                         if (global._$_get_proj_releases_interrupted) {
                             return [];
                         }
@@ -631,8 +643,7 @@
                     + '|' + /\(http.+?\)/.source // URL content (not the whole line)
                     + '|' + /\[\/\/]:.+\(\n*.+?\n*\)/.source // markdown comments
                     + '|' + /\s*<br>/.source // line breaks
-                    , 'g' // global flag
-                );
+                    , 'g');
                 let _names = _cont.match(_rex_ver_name);
                 let _infos = _cont.split(_rex_ver_name);
                 let _res = _names.map((n, i) => ({
@@ -669,10 +680,8 @@
                                 'Ant-Forest/blob/master/documents/CHANGELOG-' + _ver_num + '.md')
                                 .match(/版本历史[^]+article/)[0]
                                 .replace(/<path .+?\/path>/g, '')
-                                .replace(
-                                    /<a .+?(<code>((issue |pr )?#\d+)<\/code>)?<\/a>/g,
-                                    ($0, $1, $2) => $2 ? '_[`' + $2 + '`]_' : ''
-                                )
+                                .replace(/<a .+?(<code>((issue |pr )?#\d+)<\/code>)?<\/a>/g,
+                                    ($0, $1, $2) => $2 ? '_[`' + $2 + '`]_' : '')
                                 .replace(/<svg .+?\/svg>/g, '')
                                 .replace(/<link>.+/g, '')
                                 .replace(/<h1>/g, '# ')
@@ -863,9 +872,9 @@
                                 '版本: ' + o.version_name + '\n' +
                                 '路径: ' + o.path + '\n' +
                                 '备注: ' + o.remark);
-                        }
+                        },
                     });
-                }
+                },
             }).act();
 
             // tool function(s) //
@@ -911,12 +920,7 @@
                             _f.call(_cbk, _data);
                         }
                         if (_opt.is_save_storage) {
-                            let _pp = _appx.getProjectLocalPath();
-                            let _mod = files.path(_pp + '/modules/mod-storage.js');
-                            if (!files.exists(_mod)) {
-                                throw Error('Module mod-storage doesn\'t exist');
-                            }
-                            let _af_bak = require(_mod).create('af_bak');
+                            let _af_bak = storagesx.create('af_bak');
                             let _sto_data = _af_bak.get('project', []);
                             _af_bak.put('project', _sto_data.concat(_data));
                         }
@@ -927,7 +931,7 @@
                         }
                         let _f = _cbk.onBackupFailure || _cbk.onFailure;
                         typeof _f === 'function' && _f.call(_cbk, e);
-                    }
+                    },
                 }, {is_exclude_root_folder: true, is_delete_source: true});
             }
 
@@ -941,7 +945,7 @@
                     is_unbundled: true,
                     filter: function (name) {
                         return !!~_project_structure_names.indexOf(name);
-                    }
+                    },
                 });
 
                 return _tmp_path;
@@ -981,7 +985,7 @@
             return this.getProjectLocal().version_name;
         },
         /**
-         * @param {string|{version_name:string}} ver
+         * @param {string|number|{version_name:string}} ver
          * @param {Object} [options]
          * @param {'number'|'string'|'string_with_prefix'} [options.type='string']
          * @example
@@ -999,11 +1003,11 @@
                 throw Error('A "version" must be defined for appx.getVerHex()');
             }
             let _opt = options || {};
-            let _rex = /^v?(\d+)\.(\d+)\.(\d+)\s*(a(?:lpha)?|b(?:eta)?)?\s*(\d*)$/i;
-            let _hexStr = s => ('00' + Number(s).toString(16)).slice(-2);
+            let _hexStr = s => ('00' + Number(s || 0).toString(16)).slice(-2);
             let _max_a = 0x80;
             let _max_b = 0xff - _max_a;
-            let _str = ver.trim().replace(_rex, ($0, $1, $2, $3, $4, $5) => {
+            let _rex = /^[a-z\s]*(\d+)(?:\.(\d+)(?:\.(\d+)(?:-\d+)?\s*(a(?:lpha)?|b(?:eta)?)?\s*(\d*))?)?$/i;
+            let _str = ver.toString().trim().replace(_rex, ($0, $1, $2, $3, $4, $5) => {
                 let _$a = [$1, $2, $3].map(s => _hexStr(s)).reduce((a, b) => a + b);
                 let _$5 = $5 ? Number($5) : 1;
                 let _$4 = 0xff;
@@ -1027,7 +1031,7 @@
             return _opt.type === 'number' ? Number(_hex) : _opt.type === 'string_with_prefix' ? _hex : _str;
         },
         /**
-         * @param {{}} [options]
+         * @param {Object} [options]
          * @param {string} [options.min_version_name='v0.0.0']
          * @param {boolean} [options.no_extend=false]
          * @param {boolean} [options.show_progress_dialog=false]
@@ -1053,7 +1057,7 @@
                     max_items: 1, per_page: 1,
                 }))[0];
             }
-        }
+        },
     };
     let httpx = {
         /**
@@ -1061,7 +1065,7 @@
          * @async
          * @param {string} url
          * @param {function(value:number)} callback
-         * @param {{}} [options]
+         * @param {Object} [options]
          * @param {number} [options.timeout=10e3]
          * @param {number} [options.concurrence=12]
          * @example
@@ -1170,9 +1174,7 @@
                     _onResponse(r);
 
                     let _buf_len = 4096;
-                    let _buf_bytes = java.lang.reflect.Array.newInstance(
-                        java.lang.Byte.TYPE, _buf_len
-                    );
+                    let _buf_bytes = java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE, _buf_len);
                     let _read_bytes;
                     let _processed = 0;
 
@@ -1214,7 +1216,7 @@
                 });
                 global._$_dialog_flow_interrupted = false;
             }
-        }
+        },
     };
     let filesx = {
         /**
@@ -1808,7 +1810,7 @@
          *         setTimeout(() => _diag.dismiss(), 2e3);
          *     },
          * }) && toastLog('OK');
-         * @return {boolean}
+         * @returns {boolean}
          */
         copy(src, target, options, callback) {
             let _cbk = callback || {};
@@ -1932,7 +1934,7 @@
                 throw TypeError('Unknown type of color for colorsx.toInt()');
             }
             return _c;
-        }
+        },
     };
     let threadsx = {
         /**
@@ -1951,7 +1953,7 @@
                     throw Error(e);
                 }
             }
-        }
+        },
     };
     let dialogsx = {
         _colors: {
@@ -2025,7 +2027,7 @@
                 success: '#009624',
                 error: '#003c8f',
                 failure: '#003c8f',
-            }
+            },
         },
         _text: {
             /**
@@ -2105,13 +2107,12 @@
 
             function applyOtherDialogProperties(builder, properties) {
                 if (properties.inputHint !== undefined || properties.inputPrefill !== undefined) {
-                    builder.input(
-                        wrapNonNullString(properties.inputHint),
-                        wrapNonNullString(properties.inputPrefill),
-                        function (d, input) {
-                            return builder.emit('input_change', builder.dialog, input.toString());
-                        }
-                    ).alwaysCallInputCallback();
+                    let _ih = wrapNonNullString(properties.inputHint);
+                    let _ip = wrapNonNullString(properties.inputPrefill);
+                    let _cbk = function (d, input) {
+                        return builder.emit('input_change', builder.dialog, input.toString());
+                    };
+                    builder.input(_ih, _ip, _cbk).alwaysCallInputCallback();
                 }
                 if (properties.items !== undefined) {
                     let itemsSelectMode = properties.itemsSelectMode;
@@ -2264,9 +2265,7 @@
          */
         appendContentText(d, str) {
             ui.run(() => {
-                d && d.getContentView().setText(
-                    this.getContentText(d) + (str ? str.toString() : '')
-                );
+                d && d.getContentView().setText(this.getContentText(d) + (str ? str.toString() : ''));
             });
         },
         /**
@@ -2316,7 +2315,7 @@
         },
         /**
          * Build a dialog with flow steps
-         * @param {{}} [config]
+         * @param {Object} [config]
          * @param {string} [config.title]
          * @param {*} [config.initial_value]
          * @param {DialogsxButtonText} [config.on_interrupt_btn_text='B']
@@ -2460,9 +2459,10 @@
                         _dialogsx.setProgressColorTheme(_diag, 'error');
 
                         _diag.removeAllListeners('positive');
-                        _diag.setActionButton('positive', _dialogsx
-                            ._text._btn[config.on_interrupt_btn_text || 'B']
-                        );
+
+                        let _btn_el = _dialogsx._text._btn[config.on_interrupt_btn_text || 'B'];
+                        _diag.setActionButton('positive', _btn_el);
+
                         _diag.on('positive', d => d.dismiss());
 
                         _dialogsx.alertContent(_diag, err, 'append');
@@ -2537,7 +2537,7 @@
         },
         /**
          * Build a dialog with progress view
-         * @param {{}} [config]
+         * @param {Object} [config]
          * @param {string} [config.title]
          * @param {string} [config.content]
          * @param {string} [config.desc] - alias for config.content
@@ -2624,9 +2624,10 @@
                         .catch((err) => {
                             _dialogsx.setProgressColorTheme(_diag, 'error');
                             _diag.removeAllListeners('positive');
-                            _diag.setActionButton('positive', _dialogsx
-                                ._text._btn[config.on_interrupt_btn_text || 'B']
-                            );
+
+                            let _btn_el = _dialogsx._text._btn[config.on_interrupt_btn_text || 'B'];
+                            _diag.setActionButton('positive', _btn_el);
+
                             _diag.on('positive', d => d.dismiss());
 
                             _dialogsx.alertContent(_diag, err, 'append');
@@ -2695,9 +2696,8 @@
          */
         setActionButtonColor(d, action, color) {
             let _action = com.afollestad.materialdialogs.DialogAction[action.toUpperCase()];
-            let _csl = android.content.res.ColorStateList.valueOf(
-                colorsx.toInt(this._colors.wrap(color, 'button'))
-            );
+            let _c_int = colorsx.toInt(this._colors.wrap(color, 'button'));
+            let _csl = android.content.res.ColorStateList.valueOf(_c_int);
             d.getActionButton(_action).setTextColor(_csl);
         },
         /**
@@ -2705,20 +2705,18 @@
          * @param {ColorParam|DialogsxColorProgress} color
          */
         setProgressTintList(d, color) {
-            d.getProgressBar().setProgressTintList(
-                android.content.res.ColorStateList.valueOf(
-                    colorsx.toInt(this._colors.wrap(color, 'progress'))
-                )
-            );
+            let _c_int = colorsx.toInt(this._colors.wrap(color, 'progress'));
+            let _csl = android.content.res.ColorStateList.valueOf(_c_int);
+            d.getProgressBar().setProgressTintList(_csl);
         },
         /**
          * @param {JsDialog$|MaterialDialog$} d
          * @param {ColorParam} color
          */
         setProgressBackgroundTintList(d, color) {
-            d.getProgressBar().setProgressBackgroundTintList(
-                android.content.res.ColorStateList.valueOf(colorsx.toInt(color))
-            );
+            let _c_int = colorsx.toInt(color);
+            let _csl = android.content.res.ColorStateList.valueOf(_c_int);
+            d.getProgressBar().setProgressBackgroundTintList(_csl);
         },
         /**
          * @param {JsDialog$|MaterialDialog$} d
@@ -2746,7 +2744,7 @@
                 onKey(diag, key_code) {
                     typeof f === 'function' && f();
                     return key_code === android.view.KeyEvent.KEYCODE_BACK;
-                }
+                },
             });
             return d;
         },
@@ -2770,10 +2768,25 @@
             ui.run(() => d.setProgressNumberFormat(java.lang.String.format(format, args)));
         },
     };
+    let storagesx = {
+        /**
+         * @param {string} name
+         * @returns {_Storage}
+         */
+        create(name) {
+            return new _Storage(name);
+        },
+        /**
+         * @param {string} name
+         */
+        remove(name) {
+            this.create(name).clear();
+        },
+    };
 
     dialogsx.builds(['项目部署',
         '欢迎使用蚂蚁森林项目部署工具\n此工具用于 v2.0.0 以上版本的项目部署',
-        ['了解项目', 'hint'], ['退出', 'caution'], ['开始部署', 'attraction'], 1
+        ['了解项目', 'hint'], ['退出', 'caution'], ['开始部署', 'attraction'], 1,
     ]).on('neutral', () => {
         dialogsx.builds(['关于项目',
             '- 功能简介 -' + '\n' + [
@@ -2918,5 +2931,200 @@
                 });
             },
         }, {on_interrupt_btn_text: 'X', success_title: '项目部署完成'});
+    }
+
+    // updated: May 18, 2021
+    /**
+     * @param {string} name
+     * @constructor
+     */
+    function _Storage(name) {
+        let _dir = files.getSdcardPath() + '/.local/';
+        let _full_path = _dir + name + '.nfe';
+        files.createWithDirs(_full_path);
+        let _readFile = () => {
+            let _file = files.open(_full_path, 'r');
+            let _content = _file.read();
+            _file.close();
+            return _content;
+        };
+
+        this.contains = _contains;
+        this.get = _get;
+        this.put = _put;
+        this.remove = _remove;
+        this.clear = _clear;
+
+        // tool function(s) //
+
+        function _replacer(k, v) {
+            if (typeof v === 'number') {
+                if (isNaN(v) || !isFinite(v)) {
+                    /** Zero Width No-Break Space */
+                    let _pad = '\ufeff';
+                    return _pad + v.toString() + _pad;
+                }
+            }
+            return v;
+        }
+
+        function _reviver(k, v) {
+            if (typeof v === 'string') {
+                let _rex = /^\ufeff(.+)\ufeff$/;
+                if (v.match(_rex)) {
+                    return +v.replace(_rex, '$1');
+                }
+            }
+            return v;
+        }
+
+        function _contains(key) {
+            return key in _jsonParseFile();
+        }
+
+        function _put(key, new_val, forc) {
+            if (typeof new_val === 'undefined') {
+                let _m = '"put" value can\'t be undefined';
+                throw new TypeError(_m);
+            }
+
+            let _old = {};
+            let _tmp = {};
+
+            try {
+                _old = _jsonParseFile(_reviver);
+            } catch (e) {
+                console.warn(e.message);
+            }
+
+            let _cA = Object.prototype.toString.call(new_val).slice(8, -1) === 'Object';
+            let _cB = Object.prototype.toString.call(_old[key]).slice(8, -1) === 'Object';
+            let _both_type_o = _cA && _cB;
+
+            let _keyLen = () => Object.keys(new_val).length;
+
+            if (!forc && _both_type_o && _keyLen()) {
+                _tmp[key] = Object.assign(_old[key], new_val);
+            } else {
+                _tmp[key] = new_val;
+            }
+
+            let _file = files.open(_full_path, 'w');
+            _file.write(JSON.stringify(Object.assign(_old, _tmp), _replacer));
+            _file.close();
+        }
+
+        function _get(key, value) {
+            let _o = _jsonParseFile(_reviver);
+            if (_o && key in _o) {
+                return _o[key];
+            }
+            return value;
+        }
+
+        function _remove(key) {
+            let _o = _jsonParseFile();
+            if (key in _o) {
+                let _file = files.open(_full_path, 'w');
+                _file.write(JSON.stringify(_o));
+                _file.close();
+                delete _o[key];
+            }
+        }
+
+        function _clear() {
+            files.remove(_full_path);
+        }
+
+        function _jsonParseFile(reviver) {
+            let _str = _readFile();
+            try {
+                return _str ? JSON.parse(_str, reviver) : {};
+            } catch (e) {
+                console.warn('JSON.parse()解析配置文件异常');
+            }
+            try {
+                return _tryRepairEscChar(_str, reviver);
+            } catch (e) {
+                console.warn('转义字符修复失败');
+            }
+            try {
+                return _tryRepairMojibakeLines(_str, reviver);
+            } catch (e) {
+                console.warn('乱码行修复失败');
+            }
+            throw _failAndBackup();
+        }
+
+        function _tryRepairEscChar(str, reviver) {
+            console.warn('尝试查找并修复异常的转义字符');
+
+            let _rex = /[ntrfb\\'"0xu]/;
+            let _str_new = '';
+
+            for (let i in str) {
+                let _i = +i;
+                let _s = str[_i];
+                if (_s === '\\') {
+                    let _prev = str[_i - 1];
+                    let _next = str[_i + 1];
+                    if (_prev && _next) {
+                        if (_prev !== '\\' && !_next.match(_rex)) {
+                            _s += '\\';
+                        }
+                    }
+                }
+                _str_new += _s;
+            }
+
+            let _res = JSON.parse(_str_new, reviver);
+            console.info('修复成功');
+
+            let _file = files.open(_full_path, 'w');
+            _file.write(_str_new);
+            console.info('已重新写入修复后的数据');
+
+            _file.close();
+            return _res;
+        }
+
+        function _tryRepairMojibakeLines(str, reviver) {
+            console.warn('尝试查找并修复异常的乱码行');
+
+            let _split = str.split('\n');
+
+            let _len = _split.length;
+            while (_len-- > 1) {
+                try {
+                    let _a = _split.slice(0, _len - 1);
+                    let _b = _split.slice(_len + 1);
+                    let _str_new = _a.concat(_b).join('\n');
+                    let _res = JSON.parse(_str_new, reviver);
+                    console.info('修复成功');
+
+                    let _file = files.open(_full_path, 'w');
+                    _file.write(_str_new);
+                    console.info('已重新写入修复后的数据');
+
+                    _file.close();
+                    return _res;
+                } catch (e) {
+                    // nothing to do here
+                }
+            }
+            throw Error(_tryRepairMojibakeLines.name);
+        }
+
+        function _failAndBackup() {
+            let _new_file_name = name + '.nfe.' + Date.now() + '.bak';
+
+            files.rename(_full_path, _new_file_name);
+            console.error('修复失败');
+            console.warn('已将损坏的配置文件备份至');
+            console.warn(_dir + _new_file_name);
+            console.warn('以供手动排查配置文件中的问题');
+
+            return Error('JSON.parse() failed in ext-storages');
+        }
     }
 }();

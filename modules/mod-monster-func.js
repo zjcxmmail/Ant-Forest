@@ -28,12 +28,9 @@ let ext = {
     deepCloneObject: deepCloneObject,
     equalObjects: equalObjects,
     observeToastMessage: observeToastMessage,
-    getSelector: getSelector,
-    surroundWith: surroundWith,
     timeRecorder: timeRecorder,
     clickActionsPipeline: clickActionsPipeline,
     timedTaskTimeFlagConverter: timedTaskTimeFlagConverter,
-    baiduOcr: baiduOcr,
     setIntervalBySetTimeout: setIntervalBySetTimeout,
     classof: classof,
     stabilizer: stabilizer,
@@ -81,7 +78,10 @@ module.exports.load = function () {
  *     -- 1 - '-> I got you now' <br>
  *     -- 2 - '--> I got you now' <br>
  *     -- 3 - '---> I got you now'
- * @param {number|'both'|'both_dash'|'both_n'|'both_dash_n'|'dash'|'up'|'up_dash'|'2_dash'|string} [if_split_line=0] - if split line(s) needed
+ * @param {
+ *     number|'up'|'dash'|'up_dash'|'both'|'both_dash'|'2_dash'|
+ *     'both_n'|'2_n'|'both_dash_n'|'2_dash_n'|string
+ * } [if_split_line=0] - if split line(s) needed
  * <br>
  *     -- 0 - nothing to show additionally <br>
  *     -- 1 - '------------' - hyphen line (length: 33) <br>
@@ -91,7 +91,7 @@ module.exports.load = function () {
  *     -- /up|-1/ - show a line before message <br>
  *     -- /both/ - show a line before and another one after message <br>
  *     -- /both_n/ - show a line before and another one after message, then print a blank new line
- * @param {object} [params] reserved
+ * @param {Object} [params] reserved
  * @example
  * messageAction('hello', 1);
  * messageAction('hello'); // same as above
@@ -107,7 +107,7 @@ module.exports.load = function () {
  * messageAction('ERROR', 8, 1, 0, 'both_n');
  * messageAction('ERROR', 9, 1, 2, 'dash_n');
  * messageAction('only toast', null, 1);
- * @return {boolean} - whether message level is not warn and error
+ * @returns {boolean} - whether message level is not warn and error
  **/
 function messageAction(msg, msg_level, if_toast, if_arrow, if_split_line, params) {
     let $_flag = global.$$flag = global.$$flag || {};
@@ -115,10 +115,7 @@ function messageAction(msg, msg_level, if_toast, if_arrow, if_split_line, params
         return !~[3, 4, 'warn', 'w', 'error', 'e'].indexOf(msg_level);
     }
 
-    let _msg_lv = msg_level;
-    if (typeof _msg_lv === 'undefined') {
-        _msg_lv = 1;
-    }
+    let _msg_lv = msg_level === undefined ? 1 : msg_level;
     if (typeof _msg_lv !== 'number' && typeof msg_level !== 'string') {
         _msg_lv = -1;
     }
@@ -253,7 +250,7 @@ function messageAction(msg, msg_level, if_toast, if_arrow, if_split_line, params
  * showSplitLine();
  * showSplitLine('\n');
  * showSplitLine('', 'dash');
- * @return {boolean} - always true
+ * @returns {boolean} - always true
  */
 function showSplitLine(extra, style) {
     console.log((
@@ -267,15 +264,12 @@ function showSplitLine(extra, style) {
 /**
  * Wait a period of time until 'condition' is met
  * @global
- * @param condition {
- *     UiSelector$|UiObject$|string|RegExp|AdditionalSelector|function|(
+ * @param {UiSelector$|UiObject$|string|RegExp|AdditionalSelector|function|(
  *         UiSelector$|UiObject$|string|RegExp|AdditionalSelector|function|
- *         waitForAction$condition$logic_flag
- *     )[]
- * } - if condition is not true then waiting
+ *         waitForAction$condition$logic_flag)[]} condition - if condition is not true then waiting
  * @param {number} [timeout_or_times=10e3] - if < 100, takes as times
  * @param {number} [interval=200]
- * @param {object} [options]
+ * @param {Object} [options]
  * @param {boolean} [options.no_impeded=false]
  * @example
  * log(waitForAction('文件'));
@@ -295,13 +289,13 @@ function showSplitLine(extra, style) {
  * log(waitForAction(['Settings', 'Exit', ';or'], 5e3, 80)); // same as above
  * // do not invoke like the way as below, unless you know what this exactly means
  * log(waitForAction([text('Settings').findOnce(), text('Exit').findOnce(), ';or'], 5e3, 80));
- * @return {boolean} - whether 'condition' is met before timed out or not
+ * @returns {boolean} - whether 'condition' is met before timed out or not
  */
 function waitForAction(condition, timeout_or_times, interval, options) {
     let _par = options || {};
     _par.no_impeded || typeof $$impeded === 'function' && $$impeded(waitForAction.name);
 
-    let $_sel = getSelector();
+    _makeSureSelObject();
 
     if (typeof timeout_or_times !== 'number') {
         timeout_or_times = Number(timeout_or_times) || 10e3;
@@ -338,7 +332,7 @@ function waitForAction(condition, timeout_or_times, interval, options) {
             return condition();
         }
         if (!Array.isArray(condition)) {
-            return $_sel.pickup(condition);
+            return $$sel.pickup(condition);
         }
         if (condition === undefined || condition === null) {
             return false;
@@ -374,9 +368,12 @@ function waitForAction(condition, timeout_or_times, interval, options) {
  * @global
  * @param {UiSelector$|UiObject$|number[]|AndroidRect$|{x:number,y:number}|OpencvPoint$} o
  * @param {'c'|'click'|'p'|'press'|'w'|'widget'} [strategy='click'] - decide the way of click
- * @param {object|string} [options]
+ * @param {Object} [options]
  * @param {number} [options.press_time=1] - only effective for 'press' strategy
- * @param {number} [options.pt$=1] - alias of press_time
+ * @param {number} [options.pt$=1] - alias for press_time
+ * @param {number} [options.buffer_time=0] - sleep milliseconds after the click action
+ * @param {number} [options.bt$=1] - alias for buffer_time
+ * @param {number} [options.no_impeded=false]
  * @param {'disappear'|'disappear_in_place'|function():boolean|null} [options.condition_success=function():true]
  * @param {number} [options.check_time_once=500]
  * @param {number} [options.max_check_times=0] - if condition_success is specified, default will be 3
@@ -394,7 +391,7 @@ function waitForAction(condition, timeout_or_times, interval, options) {
  *     // padding: [+15, -7],
  *     padding: -7,
  * });
- * @return {boolean}
+ * @returns {boolean}
  */
 function clickAction(o, strategy, options) {
     let _opt = options || {};
@@ -430,12 +427,16 @@ function clickAction(o, strategy, options) {
         _cond_succ = () => _type.match(/^Ui/) ? _checkDisappearance() : true;
     }
 
+    let _buffer = () => sleep(_opt.buffer_time || _opt.bt$ || 0);
+
     while (~_clickOnce() && _max_chk_cnt--) {
         if (waitForAction(_cond_succ, _chk_t_once, 50)) {
+            _buffer();
             return true;
         }
     }
 
+    _buffer();
     return _cond_succ();
 
     // tool function(s) //
@@ -500,58 +501,36 @@ function clickAction(o, strategy, options) {
             : click(_x, _y);
     }
 
-    function _checkType(f) {
-        let _type_f = _chkJavaO(f) || _chkCoords(f) || _chkObjXY(f);
-        if (!_type_f) {
-            showSplitLine();
-            messageAction('不支持的clickAction()的目标参数', 4, 1);
-            messageAction('参数类型: ' + typeof f, 4, 0, 1);
-            messageAction('参数类值: ' + classof(f), 4, 0, 1);
-            messageAction('参数字串: ' + f.toString(), 4, 0, 1);
-            showSplitLine();
-            exit();
+    function _checkType(o) {
+        if (o instanceof org.opencv.core.Point) {
+            return 'Points';
         }
-        return _type_f;
-
-        // tool function(s) //
-
-        function _chkJavaO(o) {
-            if (classof(o) !== 'JavaObject') {
-                return;
-            }
-            if (o.getClass().getName().match(/Point$/)) {
-                return 'Points';
-            }
-            let string = o.toString();
-            if (string.match(/^Rect\(/)) {
-                return 'Bounds';
-            }
-            if (string.match(/UiObject/)) {
-                return 'UiObject';
-            }
+        if (o instanceof android.graphics.Rect) {
+            return 'Bounds';
+        }
+        if (o instanceof com.stardust.automator.UiObject) {
+            return 'UiObject';
+        }
+        if (o instanceof com.stardust.autojs.core.accessibility.UiSelector) {
             return 'UiSelector';
         }
-
-        function _chkCoords(arr) {
-            if (classof(f) !== 'Array') {
-                return;
-            }
-            if (arr.length !== 2) {
+        if (Array.isArray(o)) {
+            if (o.length !== 2) {
                 messageAction('clickAction()坐标参数非预期值: 2', 8, 1, 0, 1);
             }
-            if (typeof arr[0] !== 'number' || typeof arr[1] !== 'number') {
+            if (typeof o[0] !== 'number' || typeof o[1] !== 'number') {
                 messageAction('clickAction()坐标参数非number', 8, 1, 0, 1);
             }
             return 'CoordsArray';
         }
-
-        function _chkObjXY(o) {
-            if (classof(o) === 'Object') {
-                if ($_num(o.x) && $_num(o.y)) {
-                    return 'ObjXY';
-                }
-            }
+        if (typeof o === 'object' && $_num(o.x) && $_num(o.y)) {
+            return 'ObjXY';
         }
+        showSplitLine();
+        messageAction('不支持的clickAction()的目标参数', 4, 1);
+        messageAction('参数类型: ' + typeof o, 4);
+        showSplitLine();
+        exit();
     }
 
     function _parsePadding(arr) {
@@ -621,13 +600,13 @@ function clickAction(o, strategy, options) {
  * Wait for an UiObject showing up and click it
  * -- This is a combination function which means independent use is not recommended
  * @global
- * @param f {object} - only JavaObject is supported
+ * @param {UiSelector$|UiObject$} f
  * @param {number} [timeout_or_times=10e3]
  * <br>
  *     -- *DEFAULT* - take as timeout (default: 10 sec) <br>
  *     -- less than 100 - take as times
  * @param {number} [interval=300]
- * @param {object} [click_params]
+ * @param {Object} [click_params]
  * @param {number} [click_params.intermission=200]
  * @param {string} [click_params.click_strategy] - decide the way of click
  * <br>
@@ -651,11 +630,13 @@ function clickAction(o, strategy, options) {
  * <br>
  *     -- ['x', -10]|[-10, 0] - x=x-10; <br>
  *     -- ['y', 69]|[0, 69]|[69]|69 - y=y+69;
- * @return {boolean} - waitForAction(...) && clickAction(...)
+ * @returns {boolean} - waitForAction(...) && clickAction(...)
  */
 function waitForAndClickAction(f, timeout_or_times, interval, click_params) {
-    if (classof(f) !== 'JavaObject') {
-        messageAction('waitForAndClickAction不支持非JavaObject参数', 8, 1);
+    if (!(f instanceof com.stardust.autojs.core.accessibility.UiSelector)) {
+        if (!(f instanceof com.stardust.automator.UiObject)) {
+            messageAction('不支持的waitForAndClickAction参数:\n' + f, 8, 1);
+        }
     }
     let _par = click_params || {};
     let _intermission = _par.intermission || 200;
@@ -664,29 +645,30 @@ function waitForAndClickAction(f, timeout_or_times, interval, click_params) {
         sleep(_intermission);
         return clickAction(f, _strategy, _par);
     }
+    return false;
 }
 
 /**
  * Swipe to make a certain specified area, usually fullscreen, contains or overlap the bounds of 'f'
  * @global
  * @param {UiSelector$|ImageWrapper$} f
- * @param {object} [params]
- * @param {number} [params.max_swipe_times=12]
- * @param {number|string} [params.swipe_direction='auto']
+ * @param {Object} [options]
+ * @param {number} [options.max_swipe_times=12]
+ * @param {number|'l'|'left'|'u'|'up'|'r'|'right'|'d'|'down'|'auto'} [options.swipe_direction='auto']
  * <br>
  *     -- 0|'l'|'left', 1|'u'|'up', 2|'r'|'right', 3|'d'|'down' - direction to swipe each time <br>
  *     -- 'auto' - if 'f' exists but not in aim area, direction will be auto-set decided by position of 'f', or direction will be 'up'
- * @param {number} [params.swipe_time=150] - the time spent for each swiping - set bigger as needed
- * @param {number} [params.swipe_interval=300] - the time spent between every swiping - set bigger as needed
- * @param {number[]} [params.swipe_area=[0.1, 0.1, 0.9, 0.9]] - swipe from a center-point to another
- * @param {number[]} [params.aim_area=[0, 0, -1, -1]] - restrict for smaller aim area
+ * @param {number} [options.swipe_time=150] - the time spent for each swiping - set bigger as needed
+ * @param {number} [options.swipe_interval=300] - the time spent between every swiping - set bigger as needed
+ * @param {number[]} [options.swipe_area=[0.1, 0.1, 0.9, 0.9]] - swipe from a center-point to another
+ * @param {number[]} [options.aim_area=[0, 0, -1, -1]] - restrict for smaller aim area
  * <br>
  *     -- area params - x|0<=x<1: x * (height|width), -1: full-height or full-width, -2: set with default value <br>
  *     -- [%left%, %top%, %right%, %bottom%] <br>
  *     -- [1, 50, 700, 1180] - [1, 50, 700, 1180] <br>
  *     -- [1, 50, 700, -1] - [1, 50, 700, device.height] <br>
  *     -- [0.1, 0.2, -1, -1] - [0.1 * device.width, 0.2 * device.height, device.width, device.height]
- * @param {number=1|2} [params.condition_meet_sides=1]
+ * @param {number} [options.condition_meet_sides=1]
  * <br>
  *     -- example A: condition_meet_sides = 1 <br>
  *     -- aim: [0, 0, 720, 1004], direction: 'up', swipe distance: 200 <br>
@@ -697,27 +679,22 @@ function waitForAndClickAction(f, timeout_or_times, interval, click_params) {
  *     -- swipe once - bounds: [0, 1100, 720, 1350] - neither top nor bottom < 1004 - continue swiping <br>
  *     -- swipe once - bounds: [0, 900, 720, 1150] - top < 1004, but not bottom - swipe will not stop <br>
  *     -- swipe once - bounds: [0, 700, 720, 950] - top < 1004, and so is bottom - swipe will stop
+ * @param {number} [options.no_impeded=false]
  * @returns {boolean} - if timed out or max swipe times reached
  */
-function swipeAndShow(f, params) {
-    let _par = params || {};
-    _par.no_impeded || typeof $$impeded === 'function' && $$impeded(swipeAndShow.name);
+function swipeAndShow(f, options) {
+    let _opt = options || {};
+    _opt.no_impeded || typeof $$impeded === 'function' && $$impeded(swipeAndShow.name);
 
-    let _swp_itv = _par.swipe_interval || 150;
-    let _swp_max = _par.max_swipe_times || 12;
-    let _swp_time = _par.swipe_time || 150;
-    let _cond_meet_sides = parseInt(_par.condition_meet_sides);
+    let _swp_itv = _opt.swipe_interval || 150;
+    let _swp_max = _opt.max_swipe_times || 12;
+    let _swp_time = _opt.swipe_time || 150;
+    let _cond_meet_sides = parseInt(_opt.condition_meet_sides.toString());
     if (_cond_meet_sides !== 1 || _cond_meet_sides !== 2) {
         _cond_meet_sides = 1;
     }
-
-    if (!global.WIDTH || !global.HEIGHT) {
-        let _data = require('./ext-device').getDisplay();
-        [global.WIDTH, global.HEIGHT] = [_data.WIDTH, _data.HEIGHT];
-    }
-
-    let _swp_area = _setAreaParams(_par.swipe_area, [0.1, 0.1, 0.9, 0.9]);
-    let _aim_area = _setAreaParams(_par.aim_area, [0, 0, -1, -1]);
+    let _swp_area = _setAreaParams(_opt.swipe_area, [0.1, 0.1, 0.9, 0.9]);
+    let _aim_area = _setAreaParams(_opt.aim_area, [0, 0, -1, -1]);
     let _swp_drxn = _setSwipeDirection();
     let _ret = true;
 
@@ -740,7 +717,7 @@ function swipeAndShow(f, params) {
     }
 
     function _setSwipeDirection() {
-        let _swp_drxn = _par.swipe_direction;
+        let _swp_drxn = _opt.swipe_direction;
         if (typeof _swp_drxn === 'string' && _swp_drxn !== 'auto') {
             if (_swp_drxn.match(/$[Lf](eft)?^/)) {
                 return 'left';
@@ -779,9 +756,16 @@ function swipeAndShow(f, params) {
     }
 
     function _setAreaParams(specified, backup_plan) {
-        let _area = _checkArea(specified) || backup_plan;
-        _area = _area.map((_num, _idx) => _num !== -2 ? _num : backup_plan[_idx]);
-        _area = _area.map((_num, _idx) => _num >= 1 ? _num : ((!~_num ? 1 : _num) * (_idx % 2 ? HEIGHT : WIDTH)));
+        let _area = (_checkArea(specified) || backup_plan)
+            .map((num, idx) => {
+                let _num = num !== -2 ? num : backup_plan[idx];
+                if (_num >= 1) {
+                    return _num;
+                }
+                let _l = idx % 2 ? global.H || device.height : global.W || device.width;
+                let _factor = ~_num ? _num : 1;
+                return _l * _factor;
+            });
         let [_l, _t, _r, _b] = _area;
         if (_r < _l) [_r, _l] = [_l, _r];
         if (_b < _t) [_b, _t] = [_t, _b];
@@ -892,9 +876,8 @@ function swipeAndShow(f, params) {
         function _chk_img() {
             if (typeof imagesx === 'object') {
                 imagesx.permit();
-            } else if (!global._$_request_screen_capture) {
+            } else {
                 images.requestScreenCapture();
-                global._$_request_screen_capture = true;
             }
 
             let _mch = images.findImage(images.captureScreen(), f);
@@ -910,7 +893,7 @@ function swipeAndShow(f, params) {
  * @global
  * -- This is a combination function which means independent use is not recommended
  * @param {UiSelector$|ImageWrapper$} f
- * @param {object} [swipe_params]
+ * @param {Object} [swipe_params]
  * @param {number} [swipe_params.max_swipe_times=12]
  * @param {number|string} [swipe_params.swipe_direction='auto']
  * <br>
@@ -937,7 +920,7 @@ function swipeAndShow(f, params) {
  *     -- swipe once - bounds: [0, 1100, 720, 1350] - neither top nor bottom < 1004 - continue swiping <br>
  *     -- swipe once - bounds: [0, 900, 720, 1150] - top < 1004, but not bottom - swipe will not stop <br>
  *     -- swipe once - bounds: [0, 700, 720, 950] - top < 1004, and so is bottom - swipe will stop
- * @param {object} [click_params]
+ * @param {Object} [click_params]
  * @param {number} [click_params.intermission=300]
  * @param {string} [click_params.click_strategy] - decide the way of click
  * <br>
@@ -965,21 +948,21 @@ function swipeAndShow(f, params) {
 function swipeAndShowAndClickAction(f, swipe_params, click_params) {
     let _res_swipe = swipeAndShow(f, swipe_params);
     if (_res_swipe) {
-        return clickAction(
-            typeof _res_swipe === 'boolean' ? f : _res_swipe,
-            click_params && click_params.click_strategy, click_params
-        );
+        let _o = typeof _res_swipe === 'boolean' ? f : _res_swipe;
+        let _stg = click_params && click_params.click_strategy;
+        return clickAction(_o, _stg, click_params);
     }
 }
 
 /**
  * Simulates touch, keyboard or key press events (by shell or functions based on accessibility service)
  * @global
- * @param code {string|number} - {@link https://developer.android.com/reference/android/view/KeyEvent}
- * @param {object} [params]
- * @param {boolean} [params.force_shell] - don't use accessibility functions like back(), home() or recents()
- * @param {boolean} [params.no_err_msg] - don't print error message when keycode() failed
- * @param {boolean} [params.double] - simulate keycode twice with tiny interval
+ * @param {string|number} code - {@link https://developer.android.com/reference/android/view/KeyEvent}
+ * @param {Object} [options]
+ * @param {boolean} [options.force_shell] - don't use accessibility functions like back(), home() or recents()
+ * @param {boolean} [options.no_err_msg] - don't print error message when keycode() failed
+ * @param {boolean} [options.double] - simulate keycode twice with tiny interval
+ * @param {boolean} [options.no_impeded=false]
  * @example
  * // home key
  * keycode('home');
@@ -995,23 +978,27 @@ function swipeAndShowAndClickAction(f, swipe_params, click_params) {
  * keycode('recent_apps');
  * keycode('recent');
  * keycode('KEYCODE_APP_SWITCH');
- * @return {boolean}
+ * @returns {boolean}
  */
-function keycode(code, params) {
-    let _par = params || {};
-    _par.no_impeded || typeof $$impeded === 'function' && $$impeded(keycode.name);
+function keycode(code, options) {
+    let _opt = options || {};
+    _opt.no_impeded || typeof $$impeded === 'function' && $$impeded(keycode.name);
 
-    if (_par.force_shell) {
+    if (_opt.force_shell) {
         return keyEvent(code);
     }
     let _tidy_code = code.toString().toLowerCase()
         .replace(/^keycode_|s$/, '')
         .replace(/_([a-z])/g, ($0, $1) => $1.toUpperCase());
-    let _1st_res = simulateKey();
-    return _par.double ? simulateKey() : _1st_res;
+    let _res = simulateKey();
+    return _opt.double ? simulateKey() && _res : _res;
 
     // tool function(s) //
 
+    /**
+     * @param {number|string} keycode
+     * @returns {boolean}
+     */
     function keyEvent(keycode) {
         let _checker = {'26, power': checkPower};
         for (let _key in _checker) {
@@ -1028,9 +1015,7 @@ function keycode(code, params) {
         function checkPower() {
             let isScreenOn = () => {
                 /** @type {android.os.PowerManager} */
-                let _pow_mgr = context.getSystemService(
-                    android.content.Context.POWER_SERVICE
-                );
+                let _pow_mgr = context.getSystemService(android.content.Context.POWER_SERVICE);
                 return (_pow_mgr.isInteractive || _pow_mgr.isScreenOn).call(_pow_mgr);
             };
             let isScreenOff = () => !isScreenOn();
@@ -1042,47 +1027,49 @@ function keycode(code, params) {
 
                 return max >= 0;
             }
-            if (!shellInputKeyEvent(keycode)) {
-                return false;
-            }
-            return waitForAction(isScreenOff, 2.4e3);
+            return shellInputKeyEvent(keycode) && waitForAction(isScreenOff, 2.4e3);
         }
 
+        /**
+         * @param {number|string} keycode
+         * @returns {boolean}
+         */
         function shellInputKeyEvent(keycode) {
             try {
                 return !shell('input keyevent ' + keycode, true).code;
             } catch (e) {
-                if (!_par.no_err_msg) {
+                if (!_opt.no_err_msg) {
                     messageAction('按键模拟失败', 0);
                     messageAction('键值: ' + keycode, 0, 0, 1);
                 }
-                return false;
             }
+            return false;
         }
     }
 
+    /** @returns {boolean} */
     function simulateKey() {
         switch (_tidy_code) {
             case '3':
             case 'home':
-                return !!~home();
+                return home();
             case '4':
             case 'back':
-                return !!~back();
+                return back();
             case 'appSwitch':
             case '187':
             case 'recent':
             case 'recentApp':
-                return !!~recents();
+                return recents();
             case 'powerDialog':
             case 'powerMenu':
-                return !!~powerDialog();
+                return powerDialog();
             case 'notification':
-                return !!~notifications();
+                return notifications();
             case 'quickSetting':
-                return !!~quickSettings();
+                return quickSettings();
             case 'splitScreen':
-                return !!~splitScreen();
+                return splitScreen();
             default:
                 return keyEvent(code);
         }
@@ -1092,22 +1079,27 @@ function keycode(code, params) {
 /**
  * Print a message in console with verbose mode for debugging
  * @global
- * @param msg {'__split_line__'|'__split_line__dash__'|string|string[]} - message will be formatted with prefix '>> '
- * <br>
- *     - 'sum is much smaller' - '>> sum is much smaller' <br>
- *     - '>sum is much smaller' - '>>> sum is much smaller'
- * @param {'up'|'up_2'|'up_3'|'up_4'|'Up'|'Up_2'|'Up_3'|'Up_4'|'both'|'both_2'|'both_3'|'both_4'|'both_dash'|'both_dash_2'|'both_dash_3'|'both_dash_4'|'up_dash'|'Up_both_dash'|string|number} [msg_level=0] - 'Up': black up line; 'up': grey up line; 'Up_dash': not supported
- * @param {boolean} [forcible_flag=undefined] - forcibly enabled with truthy; forcibly disabled with false (not falsy)
+ * @param {
+ *     '__split_line__'|'__split_line__dash__'|string|string[]
+ * } msg - message will be formatted with prefix '>> '
+ * @param {
+ *     'up'|'up_2'|'up_3'|'up_4'|
+ *     'Up'|'Up_2'|'Up_3'|'Up_4'|
+ *     'both'|'both_2'|'both_3'|'both_4'|
+ *     'both_dash'|'both_dash_2'|'both_dash_3'|'both_dash_4'|
+ *     'up_dash'|'Up_both_dash'|string|number
+ * } [msg_level=0] - 'Up': black up line; 'up': grey up line; 'Up_dash': not supported
+ * @param {boolean} [forcible_flag] - forcibly enabled with truthy; forcibly disabled with false (not falsy)
+ * @example
+ * debugInfo('sum is much smaller') // '>> sum is much smaller'
+ * debugInfo('>sum is much smaller') // '>>> sum is much smaller'
  */
 function debugInfo(msg, msg_level, forcible_flag) {
     let $_flag = global.$$flag = global.$$flag || {};
 
     let _glob_fg = $_flag.debug_info_avail;
     let _forc_fg = forcible_flag;
-    if (!_glob_fg && !_forc_fg) {
-        return;
-    }
-    if (_glob_fg === false || _forc_fg === false) {
+    if (!_glob_fg && !_forc_fg || _glob_fg === false || _forc_fg === false) {
         return;
     }
 
@@ -1124,10 +1116,12 @@ function debugInfo(msg, msg_level, forcible_flag) {
     if (typeof msg === 'string' && msg.match(/^__split_line_/)) {
         msg = _getLineStr(msg);
     }
-    if (classof(msg) === 'Array') {
+    if (Array.isArray(msg)) {
         msg.forEach(m => debugInfo(m, _msg_lv_num, _forc_fg));
     } else {
-        messageAction((msg || '').replace(/^(>*)( *)/, '>>' + '$1 '), _msg_lv_num);
+        messageAction((msg || '').replace(/^(>*)( *)/, ($0, $1) => {
+            return '>> ' + $1.replace(/./g, '- ');
+        }), _msg_lv_num);
     }
 
     if (_msg_lv_str.match('both')) {
@@ -1147,7 +1141,7 @@ function debugInfo(msg, msg_level, forcible_flag) {
  * @global
  * @param {*} obj_a
  * @param {*} obj_b
- * @return {boolean}
+ * @returns {boolean}
  */
 function equalObjects(obj_a, obj_b) {
     let _classOf = value => Object.prototype.toString.call(value).slice(8, -1);
@@ -1227,8 +1221,8 @@ function equalObjects(obj_a, obj_b) {
 /**
  * Deep clone a certain object (generalized)
  * @global
- * @param obj {*}
- * @return {*}
+ * @param {Object} obj
+ * @returns {Object}
  */
 function deepCloneObject(obj) {
     let classOfObj = Object.prototype.toString.call(obj).slice(8, -1);
@@ -1245,11 +1239,11 @@ function deepCloneObject(obj) {
 /**
  * Observe message(s) from Toast by events.observeToast()
  * @global
- * @param aim_app_pkg {string}
- * @param aim_msg {RegExp|string} - regular expression or a certain specific string
+ * @param {string} aim_app_pkg
+ * @param {RegExp|string} aim_msg - regular expression or a certain specific string
  * @param {number} [timeout=8e3]
  * @param {number} [aim_amount=1] - events will be cleared if aim_amount messages have been got
- * @return {string[]}
+ * @returns {string[]}
  */
 function observeToastMessage(aim_app_pkg, aim_msg, timeout, aim_amount) {
     let _tt = +timeout || 8e3;
@@ -1277,490 +1271,6 @@ function observeToastMessage(aim_app_pkg, aim_msg, timeout, aim_amount) {
     events.removeAllListeners('toast');
 
     return _got_msg;
-}
-
-/**
- * Returns a UiSelector with additional function(s)
- * @global
- * @param {object} [options]
- * @param {boolean} [options.debug_info_flag]
- */
-function getSelector(options) {
-    let _opt = options || {};
-    let _sel = Object.create(selector());
-
-    let _sel_ext = {
-        _sel_body_pool: {},
-        _cache_pool: {},
-        /**
-         * @typedef {
-         *     UiSelector$|UiObject$|string|RegExp|AdditionalSelector|
-         *     (UiSelector$|UiObject$|string|RegExp|AdditionalSelector)[]
-         * } UiSelector$pickup$sel_body
-         * @typedef {
-         *     UiObject$|UiObjectCollection$|UiSelector$|AndroidRect$|string|boolean
-         * } UiSelector$pickup$return_value
-         * @typedef {
-         *     'w'|'widget'|'w_collection'|'widget_collection'|'wcollection'|'widgetcollection'|'w_c'|'widget_c'|'wc'|'widgetc'|'widgets'|'wids'|'s'|'sel'|'selector'|'e'|'exist'|'exists'|'t'|'txt'|'ss'|'sels'|'selectors'|'s_s'|'sel_s'|'selector_s'|'sstr'|'selstr'|'selectorstr'|'s_str'|'sel_str'|'selector_str'|'sstring'|'selstring'|'selectorstring'|'s_string'|'sel_string'|'selector_string'|UiObjectProperties|string
-         * } UiSelector$pickup$res_type
-         */
-        /**
-         * Returns a selector (UiSelector) or widget (UiObject) or some attribute values
-         * If no widgets (UiObject) were found, returns null or '' or false
-         * If memory keyword was found in this session memory, use a memorized selector directly
-         * @function UiSelector$.prototype.pickup
-         * @param {UiSelector$pickup$sel_body} sel_body
-         * <br>
-         *     -- array mode 1: [selector_body: any, compass: string]
-         *     -- array mode 2: [selector_body: any, additional_sel: array|object, compass: string]
-         * @param {string} [mem_sltr_kw] - memory keyword
-         * @param {UiSelector$pickup$res_type} [res_type='widget'] -
-         * <br>
-         *     -- 'txt': available text()/desc() value or empty string
-         *     -- 'clickable': boolean value of widget.clickable()
-         *     -- 'wc': widget collection which is traversable
-         * @param {object} [par]
-         * @param {'desc'|'text'} [par.selector_prefer='desc'] - unique selector you prefer to check first
-         * @param {boolean} [par.debug_info_flag]
-         * @example
-         * // text/desc/id('abc').findOnce();
-         * pickup('abc'); // UiObject
-         * pickup('abc', 'w'); // same as above
-         * pickup('abc', 'w', 'my_alphabet'); // with memory keyword
-         *
-         * // text/desc/id('abc');
-         * pickup('abc', 'sel', 'my_alphabet'); // UiSelector
-         *
-         * // text('abc').findOnce()
-         * pickup(text('abc'), 'w', 'my_alphabet'); // with UiObject selector body
-         *
-         * // get the string of selector
-         * pickup(/^abc.+z/, 'sel_str'); // returns 'id'|'text'|'desc'...
-         *
-         * // text/desc/id('morning').exists()
-         * pickup('morning', 'exists'); // boolean
-         *
-         * // text/desc/id('morning').findOnce().parent().parent().child(3).id()
-         * pickup(['morning', 'p2c3'], 'id');
-         *
-         * // text/desc/id('hello').findOnce().parent().child(%childCount% - 3)['text'|'desc']
-         * pickup(['hello', 's-3'], 'txt');
-         *
-         * // text/desc/id('hello').findOnce().parent().child(%indexInParent% + 2)['text'|'desc']
-         * pickup(['hello', 's>2'], 'txt');
-         *
-         * // desc('a').className(...).boundsInside(...).findOnce().parent().child(%indexInParent% + 1).clickable()
-         * pickup([desc('a').className('Button'), {boundsInside: [0, 0, 720, 1000]}, 's>1'], 'clickable', 'back_btn');
-         *
-         * // className('Button').findOnce()
-         * pickup({className: 'Button'});
-         *
-         * // w = className('Button').findOnce().parent().parent().parent().parent().parent().child(1).child(0).child(0).child(0).child(1);
-         * // w.parent().child(0);
-         * pickup([{className: 'Button'}, 'p5c1>0>0>0>1s0']);
-         *
-         * // w = className('Button').findOnce().parent().parent().parent().parent().parent().child(1).child(0).child(0).child(0).child(1);
-         * // w.parent(w.indexInParent() - 1);
-         * pickup([{className: 'Button'}, 'p5c1>0>0>0>1s<1']);
-         *
-         * // w = className('Button').findOnce().parent().parent().parent().parent().parent().child(1).child(0).child(0).child(0).child(1);
-         * // w.parent().child(w.parent().childCount() - 1);
-         * pickup([{className: 'Button'}, 'p5c1>0>0>0>1s-1']);
-         * @returns {UiSelector$pickup$return_value}
-         */
-        pickup(sel_body, res_type, mem_sltr_kw, par) {
-            let _sel_body = classof(sel_body) === 'Array' ? sel_body.slice() : [sel_body];
-            let _params = Object.assign({}, _opt, par);
-            let _res_type = (res_type || '').toString();
-
-            if (!_res_type || _res_type.match(/^w(idget)?$/)) {
-                _res_type = 'widget';
-            } else if (_res_type.match(/^(w(idget)?_?c(ollection)?|wid(get)?s)$/)) {
-                _res_type = 'widgets';
-            } else if (_res_type.match(/^s(el(ector)?)?$/)) {
-                _res_type = 'selector';
-            } else if (_res_type.match(/^e(xist(s)?)?$/)) {
-                _res_type = 'exists';
-            } else if (_res_type.match(/^t(xt)?$/)) {
-                _res_type = 'txt';
-            } else if (_res_type.match(/^s(el(ector)?)?(_?s)(tr(ing)?)?$/)) {
-                _res_type = 'selector_string';
-            }
-
-            if (typeof _sel_body[1] === 'string') {
-                // take it as 'compass' variety
-                _sel_body.splice(1, 0, '');
-            }
-
-            let [_body, _addi_sel, _compass] = _sel_body;
-
-            let _sltr = _getSelector(_addi_sel);
-            /** @type {UiObject$|null} */
-            let _w = null;
-            let _wc = [];
-            if (_sltr && _sltr.toString().match(/UiObject/)) {
-                _w = _sltr;
-                if (_res_type === 'widgets') {
-                    _wc = [_sltr];
-                }
-                _sltr = null;
-            } else {
-                _w = _sltr ? _sltr.findOnce() : null;
-                if (_res_type === 'widgets') {
-                    _wc = _sltr ? _sltr.find() : [];
-                }
-            }
-
-            if (_compass) {
-                _w = _relativeWidget([_sltr || _w, _compass]);
-            }
-
-            let _res = {
-                selector: _sltr,
-                widget: _w,
-                widgets: _wc,
-                exists: !!_w,
-                get selector_string() {
-                    return _sltr ? _sltr.toString().match(/[a-z]+/)[0] : '';
-                },
-                get txt() {
-                    let _text = _w && _w.text() || '';
-                    let _desc = _w && _w.desc() || '';
-                    return _desc.length > _text.length ? _desc : _text;
-                }
-            };
-
-            if (_res_type in _res) {
-                return _res[_res_type];
-            }
-
-            try {
-                return _w ? _w[_res_type]() : null;
-            } catch (e) {
-                try {
-                    return _w[_res_type];
-                } catch (e) {
-                    debugInfo(e.message, 3);
-                    return null;
-                }
-            }
-
-            // tool function(s)//
-
-            function _getSelector(addition) {
-                let _mem_key = '_$_mem_sltr_' + mem_sltr_kw;
-                if (mem_sltr_kw) {
-                    let _mem_sltr = global[_mem_key];
-                    if (_mem_sltr) {
-                        return _mem_sltr;
-                    }
-                }
-                let _sltr = _selGenerator();
-                if (mem_sltr_kw && _sltr) {
-                    global[_mem_key] = _sltr;
-                }
-                return _sltr;
-
-                // tool function(s) //
-
-                function _selGenerator() {
-                    let _prefer = _params.selector_prefer;
-                    let _body_class = classof(_body);
-                    let _sel_keys_abbr = {
-                        bi$: 'boundsInside',
-                        c$: 'clickable',
-                        cn$: 'className',
-                    };
-
-                    if (_body_class === 'JavaObject') {
-                        if (_body.toString().match(/UiObject/)) {
-                            addition && debugInfo('UiObject无法使用额外选择器', 3);
-                            return _body;
-                        }
-                        return _chkSels(_body);
-                    }
-
-                    if (typeof _body === 'string') {
-                        return _prefer === 'text'
-                            ? _chkSels(text(_body), desc(_body), id(_body))
-                            : _chkSels(desc(_body), text(_body), id(_body));
-                    }
-
-                    if (_body_class === 'RegExp') {
-                        return _prefer === 'text'
-                            ? _chkSels(textMatches(_body), descMatches(_body), idMatches(_body))
-                            : _chkSels(descMatches(_body), textMatches(_body), idMatches(_body));
-                    }
-
-                    if (_body_class === 'Object') {
-                        let _s = selector();
-                        Object.keys(_body).forEach((k) => {
-                            let _arg = _body[k];
-                            let _k = k in _sel_keys_abbr ? _sel_keys_abbr[k] : k;
-                            _s = _s[_k].apply(_s, Array.isArray(_arg) ? _arg : [_arg]);
-                        });
-                        return _s;
-                    }
-
-                    // tool function(s) //
-
-                    function _chkSels(sels) {
-                        let _sels = Array.isArray(sels) ? sels : [].slice.call(arguments);
-                        for (let i = 0, l = _sels.length; i < l; i += 1) {
-                            let _res = _chkSel(_sels[i]);
-                            if (_res) {
-                                return _res;
-                            }
-                        }
-                        return null;
-
-                        // tool function(s) //
-
-                        function _chkSel(sel) {
-                            if (classof(addition) === 'Array') {
-                                let _o = {};
-                                _o[addition[0]] = addition[1];
-                                addition = _o;
-                            }
-                            if (classof(addition) === 'Object') {
-                                let _keys = Object.keys(addition);
-                                for (let i = 0, l = _keys.length; i < l; i += 1) {
-                                    let _k = _keys[i];
-                                    let _sel_k = _k in _sel_keys_abbr ? _sel_keys_abbr[_k] : _k;
-                                    if (!sel[_sel_k]) {
-                                        debugInfo(['无效的additional_selector属性值:', _sel_k], 3);
-                                        return null;
-                                    }
-                                    let _arg = addition[_k];
-                                    _arg = Array.isArray(_arg) ? _arg : [_arg];
-                                    try {
-                                        sel = sel[_sel_k].apply(sel, _arg);
-                                    } catch (e) {
-                                        debugInfo(['无效的additional_selector选择器:', _sel_k], 3);
-                                        return null;
-                                    }
-                                }
-                            }
-                            try {
-                                return sel && sel.exists() ? sel : null;
-                            } catch (e) {
-                                return null;
-                            }
-                        }
-                    }
-                }
-            }
-
-            /**
-             * Returns a relative widget (UiObject) by compass string
-             * @returns {UiObject|null}
-             */
-            function _relativeWidget(w_info) {
-                let _w_o = classof(w_info) === 'Array' ? w_info.slice() : [w_info];
-                let _w = _w_o[0];
-                let _w_class = classof(_w);
-                let _w_str = (_w || '').toString();
-
-                if (typeof _w === 'undefined') {
-                    debugInfo('relativeWidget的widget参数为Undefined');
-                    return null;
-                }
-                if (_w === null) {
-                    return null;
-                }
-                if (_w_str.match(/^Rect\(/)) {
-                    return null;
-                }
-                if (_w_class === 'JavaObject') {
-                    if (!_w_str.match(/UiObject/)) {
-                        _w = _w.findOnce();
-                        if (!_w) {
-                            return null;
-                        }
-                    }
-                } else {
-                    debugInfo('未知的relativeWidget的widget参数', 3);
-                    return null;
-                }
-
-                let _compass = _w_o[1];
-                if (!_compass) {
-                    return _w;
-                }
-                _compass = _compass.toString();
-
-                while (_compass.length) {
-                    let _mch_p, _mch_c, _mch_s;
-                    // p2 ( .parent().parent() )
-                    // pppp  ( p4 )
-                    // p  ( p1 )
-                    // p4pppp12p  ( p4 ppp p12 p -> 4 + 3 + 12 + 1 -> p20 )
-                    if ((_mch_p = /^p[p\d]*/.exec(_compass))) {
-                        let _len = _compass.match(/p\d+|p+(?!\d)/g).reduce((a, b) => (
-                            a + (/\d/.test(b) ? +b.slice(1) : b.length)
-                        ), 0);
-                        while (_len--) {
-                            if (!(_w = _w.parent())) {
-                                return null;
-                            }
-                        }
-                        _compass = _compass.slice(_mch_p[0].length);
-                        continue;
-                    }
-                    // c0c2c0c1  ( .child(0).child(2).child(0).child(1) )
-                    // c0>2>0>1  ( .child(0).child(2).child(0).child(1) )
-                    // c-3  ( .child(childCount()-3) )
-                    // c-3c2c-1  ( .child(childCount()-3).child(2).child(childCount()-1) )
-                    // c1>2>3>0>-1>1  ( c1 c2 c3 c0 c-1 c1 )
-                    if ((_mch_c = /^c-?\d+([>c]?-?\d+)*/.exec(_compass))) {
-                        let _nums = _mch_c[0].split(/[>c]/);
-                        for (let s of _nums) {
-                            if (s.length) {
-                                let _i = +s;
-                                if (!_w) {
-                                    return null;
-                                }
-                                let _cc = _w.childCount();
-                                if (_i < 0) {
-                                    _i += _cc;
-                                }
-                                if (_i < 0 || _i >= _cc) {
-                                    return null;
-                                }
-                                _w = _w.child(_i);
-                            }
-                        }
-                        _compass = _compass.slice(_mch_c[0].length);
-                        continue;
-                    }
-                    // s2  ( .parent().child(2) )
-                    // s-2  ( .parent().child(childCount()-2) )
-                    // s>2  ( .parent().child(idxInParent()+2) )
-                    // s<2  ( .parent().child(idxInParent()-2) )
-                    if ((_mch_s = /^s[<>]?-?\d+/.exec(_compass))) {
-                        let _parent = _w.parent();
-                        if (!_parent) {
-                            return null;
-                        }
-                        let _idx = _w.indexInParent();
-                        if (!~_idx) {
-                            return null;
-                        }
-                        let _cc = _parent.childCount();
-                        let _str = _mch_s[0];
-                        let _offset = +_str.match(/-?\d+/)[0];
-                        if (~String.prototype.search.call(_str, '>')) {
-                            _idx += _offset;
-                        } else if (~String.prototype.search.call(_str, '<')) {
-                            _idx -= _offset;
-                        } else {
-                            _idx = _offset < 0 ? _offset + _cc : _offset;
-                        }
-                        if (_idx < 0 || _idx >= _cc) {
-                            return null;
-                        }
-                        _w = _parent.child(_idx);
-                        _compass = _compass.slice(_mch_s[0].length);
-                        continue;
-                    }
-
-                    throw Error('无法解析剩余罗盘参数: ' + _compass);
-                }
-
-                return _w || null;
-            }
-        },
-        /**
-         * @param {string} key
-         * @param {UiSelector$pickup$sel_body|(function(string):UiSelector$pickup$return_value)} sel_body
-         * @param {string} [mem]
-         * @example
-         * $$sel.add('list', className('ListView'));
-         *  // recommended
-         * console.log($$sel.get('list', 'bounds'));
-         * // NullPointerException may occur
-         * console.log($$sel.get('list').bounds());
-         * // traditional way, and NullPointerException may occur
-         * console.log(className('ListView').findOnce().bounds());
-         * @returns {UiSelector$}
-         */
-        add(key, sel_body, mem) {
-            this._sel_body_pool[key] = typeof sel_body === 'function'
-                ? type => sel_body(type)
-                : type => this.pickup(sel_body, type, mem || key);
-            return _sel; // to make method chaining possible
-        },
-        /**
-         * @param {string} key
-         * @param {UiSelector$pickup$res_type|'cache'} [type]
-         * @example
-         * $$sel.add('list', className('ListView'));
-         *  // recommended
-         * console.log($$sel.get('list', 'bounds'));
-         * // NullPointerException may occur
-         * console.log($$sel.get('list').bounds());
-         * // traditional way, and NullPointerException may occur
-         * console.log(className('ListView').findOnce().bounds());
-         * @throws {Error} `sel key '${key}' not set in pool`
-         * @returns {UiSelector$pickup$return_value|null}
-         */
-        get(key, type) {
-            if (!(key in this._sel_body_pool)) {
-                throw Error('Sel key \'' + key + '\' not set in pool');
-            }
-            let _picker = this._sel_body_pool[key];
-            return !_picker ? null : type === 'cache'
-                ? (this._cache_pool[key] = _picker('w'))
-                : _picker(type);
-        },
-        getAndCache(key) {
-            // only 'widget' type can be returned
-            return this.get(key, 'cache');
-        },
-        cache: {
-            save: (key) => _sel.getAndCache(key),
-            /** @returns {UiObject$|UiObjectCollection$|UiSelector$|AndroidRect$|string|boolean|null} */
-            load(key, type) {
-                let _cache = _sel._cache_pool[key];
-                return _cache ? _sel.pickup(_cache, type) : null;
-            },
-            refresh(key) {
-                let _cache = _sel._cache_pool[key];
-                _cache && _cache.refresh();
-                this.save(key);
-            },
-            reset(key) {
-                delete _sel._cache_pool[key];
-                return _sel.getAndCache(key);
-            },
-            recycle(key) {
-                let _cache = _sel._cache_pool[key];
-                _cache && _cache.recycle();
-            },
-        },
-    };
-
-    return Object.assign(_sel, _sel_ext);
-}
-
-/**
- * Returns a new string with a certain mark surrounded
- * @global
- * @param target {*} - will be converted to String format
- * @param {*} [mark_left='''] - will be converted to String format
- * @param {*} [mark_right=mark_left] - will be converted to String format
- * @example
- * surroundedBy('ABC') // 'ABC'
- * surroundedBy('ABC', '#') // '#ABC#'
- * surroundedBy([1, 2].join('+'), '{', '}') // {1+2}
- * @returns {string}
- */
-function surroundWith(target, mark_left, mark_right) {
-    if (typeof target === 'undefined' || target === null) return '';
-    target = target.toString();
-    mark_left = (mark_left || '"').toString();
-    mark_right = (mark_right || mark_left).toString();
-    return mark_left + target.toString() + mark_right;
 }
 
 /**
@@ -1842,7 +1352,7 @@ function timeRecorder(keyword, operation, divisor, fixed, suffix, override_times
             },
             get day() {
                 return 24 * this.hour;
-            }
+            },
         };
 
         if (result >= base_unit.day) {
@@ -1853,13 +1363,13 @@ function timeRecorder(keyword, operation, divisor, fixed, suffix, override_times
             if (_h) prefix += _h + getSuffix('hour');
             result %= base_unit.hour;
             let _min = ~~(result / base_unit.min);
-            if (_min) {
-                result /= base_unit.min;
-                suffix = getSuffix('min');
-            } else {
+            if (!_min) {
                 result %= base_unit.min;
                 result /= base_unit.sec;
                 suffix = getSuffix('sec');
+            } else {
+                result /= base_unit.min;
+                suffix = getSuffix('min');
             }
         } else if (result >= base_unit.hour) {
             let _hr = ~~(result / base_unit.hour);
@@ -1925,9 +1435,9 @@ function clickActionsPipeline(pipeline, options) {
     _max = isNaN(_max) ? 5 : _max;
     let _max_bak = _max;
 
-    let $_sel = getSelector();
+    _makeSureSelObject();
 
-    let _ppl_name = _opt.name ? surroundWith(_opt.name) : '';
+    let _ppl_name = typeof _opt.name === 'string' ? _opt.name.surround('"') : '';
 
     let _res = pipeline
         .filter(value => typeof value !== 'undefined')
@@ -1943,7 +1453,7 @@ function clickActionsPipeline(pipeline, options) {
             if (value[2] === undefined) {
                 value[2] = function () {
                     let _idx = arr[idx + 1] ? idx + 1 : idx;
-                    return $_sel.pickup(arr[_idx][0]);
+                    return $$sel.pickup(arr[_idx][0]);
                 };
             }
             if (typeof value[2] === 'function') {
@@ -1955,7 +1465,7 @@ function clickActionsPipeline(pipeline, options) {
         .every((pipe) => {
             _max = _max_bak;
             let [_sel_body, _stg, _cond] = pipe;
-            let _w = $_sel.pickup(_sel_body);
+            let _w = $$sel.pickup(_sel_body);
             do {
                 _cond !== null && clickAction(_w, _stg);
                 sleep(_itv);
@@ -1965,7 +1475,7 @@ function clickActionsPipeline(pipeline, options) {
                 return true;
             }
             messageAction(_ppl_name + '管道破裂', 3, 1, 0, 'up_dash');
-            messageAction(surroundWith(_sel_body), 3, 0, 1, 'dash');
+            messageAction(_sel_body.toString().surround('"'), 3, 0, 1, 'dash');
         });
 
     _res && debugInfo(_ppl_name + '管道完工');
@@ -1997,237 +1507,6 @@ function timedTaskTimeFlagConverter(timeFlag) {
         return Array(7).join(' ').split(' ')
             .map((value, idx) => +info[idx] ? idx : null)
             .filter(value => value !== null);
-    }
-}
-
-/**
- * Fetching data by calling OCR API from Baidu
- * @global
- * @param {[]|ImageWrapper$|UiObject$|UiObjectCollection$} src -- will be converted into Image
- * @param {object} [par]
- * @param {boolean} [par.no_toast_msg_flag=false]
- * @param {number} [par.fetch_times=1]
- * @param {number} [par.fetch_interval=100]
- * @param {boolean} [par.debug_info_flag=false]
- * @param {number} [par.timeout=60e3] -- no less than 5e3
- * @returns {Array|Array[]} -- [] or [[], [], []...]
- * @example
- * // @see 'mod-monster-func.js'
- * let sel = getSelector();
- * // [[], [], []] -- 3 groups of data
- * console.log(baiduOcr(sel.pickup(/\xa0/, 'widgets'), {
- *     fetch_times: 3,
- *     timeout: 12e3
- * }));
- */
-function baiduOcr(src, par) {
-    if (!src) {
-        return [];
-    }
-    let _par = par || {};
-    let _tt = _par.timeout || 60e3;
-    if (!+_tt || _tt < 5e3) {
-        _tt = 5e3;
-    }
-    let _tt_ts = Date.now() + _tt;
-
-    if (typeof imagesx === 'object') {
-        imagesx.permit();
-    } else if (!global._$_request_screen_capture) {
-        images.requestScreenCapture();
-        global._$_request_screen_capture = true;
-    }
-
-    let _capt = _par.capt_img || images.captureScreen();
-
-    let _msg = '使用baiduOcr获取数据';
-    debugInfo(_msg);
-    _par.no_toast_msg_flag || toast(_msg);
-
-    let _token = '';
-    let _max_token = 10;
-    let _thd_token = threads.start(function () {
-        while (_max_token--) {
-            try {
-                _token = http.get(
-                    'https://aip.baidubce.com/oauth/2.0/token' +
-                    '?grant_type=client_credentials' +
-                    '&client_id=YIKKfQbdpYRRYtqqTPnZ5bCE' +
-                    '&client_secret=hBxFiPhOCn6G9GH0sHoL0kTwfrCtndDj'
-                ).body.json()['access_token'];
-                debugInfo('access_token准备完毕');
-                break;
-            } catch (e) {
-                sleep(200);
-            }
-        }
-    });
-    _thd_token.join(_tt);
-
-    let _lv = +!_par.no_toast_msg_flag;
-    let _e = s => messageAction(s, 3, _lv, 0, 'both_dash');
-    if (_max_token < 0) {
-        _e('baiduOcr获取access_token失败');
-        return [];
-    }
-    if (_thd_token.isAlive()) {
-        _e('baiduOcr获取access_token超时');
-        return [];
-    }
-
-    let _max = _par.fetch_times || 1;
-    let _max_b = _max;
-    let _itv = _par.fetch_interval || 300;
-    let _res = [];
-    let _thds = [];
-    let _allDead = () => _thds.every(thd => !thd.isAlive());
-
-    while (_max--) {
-        _thds.push(threads.start(function () {
-            let _max_img = 10;
-            let _img = _stitchImgs(src);
-            while (_max_img--) {
-                if (!_img || !_max_img) {
-                    return [];
-                }
-                if (!_isRecycled(_img)) {
-                    break;
-                }
-                _img = _stitchImgs(src);
-            }
-            let _cur = _max_b - _max;
-            let _suffix = _max_b > 1 ? ' [' + _cur + '] ' : '';
-            debugInfo('stitched image' + _suffix + '准备完毕');
-
-            try {
-                let _words = JSON.parse(http.post('https://aip.baidubce.com/' +
-                    'rest/2.0/ocr/v1/general_basic?access_token=' + _token, {
-                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                    image: images.toBase64(_img),
-                    image_type: 'BASE64',
-                }).body.string())['words_result'];
-                if (_words) {
-                    debugInfo('数据' + _suffix + '获取成功');
-                    _res.push(_words.map(val => val['words']));
-                }
-            } catch (e) {
-                if (!e.message.match(/InterruptedIOException/)) {
-                    throw (e);
-                }
-            } finally {
-                _img.recycle();
-                _img = null;
-            }
-        }));
-        sleep(_itv);
-    }
-
-    threads.start(function () {
-        while (!_allDead()) {
-            if (Date.now() >= _tt_ts) {
-                _thds.forEach(thd => thd.interrupt());
-
-                let _msg = 'baiduOcr获取数据超时';
-                let _toast = +!_par.no_toast_msg_flag;
-                messageAction(_msg, 3, _toast, 0, 'up_dash');
-
-                if (_res.length) {
-                    messageAction('已获取的数据可能不完整', 3);
-                }
-                return showSplitLine('', 'dash');
-            }
-            sleep(500);
-        }
-    });
-
-    while (1) {
-        if (_allDead()) {
-            if (!_par.no_toast_msg_flag && _res.length) {
-                toast('baiduOcr获取数据完毕');
-            }
-            return _max_b === 1 ? _res[0] : _res;
-        }
-        sleep(500);
-    }
-
-    // tool function(s) //
-
-    function _stitchImgs(imgs) {
-        if (!Array.isArray(imgs)) {
-            imgs = [imgs].slice();
-        }
-
-        imgs = imgs.map((img) => {
-            let type = _getType(img);
-            if (type === 'UiObject') {
-                return _widgetToImage(img);
-            }
-            if (type === 'UiObjectCollection') {
-                return _widgetsToImage(img);
-            }
-            return img;
-        }).filter(img => !!img);
-
-        return _stitchImg(imgs);
-
-        // tool function(s) //
-
-        function _getType(o) {
-            let matched = o.toString().match(/\w+(?=@)/);
-            return matched ? matched[0] : '';
-        }
-
-        function _widgetToImage(widget) {
-            try {
-                // FIXME Nov 11, 2019
-                // there is a strong possibility that `widget.bounds()` would throw an exception
-                // like 'Cannot find function bounds in object xxx.xxx.xxx.UiObject@abcde'
-                let [$1, $2, $3, $4] = widget.toString()
-                    .match(/.*boundsInScreen:.*\((\d+), (\d+) - (\d+), (\d+)\).*/)
-                    .map(x => Number(x)).slice(1);
-                return images.clip(_capt, $1, $2, $3 - $1, $4 - $2);
-            } catch (e) {
-                // Wrapped java.lang.IllegalArgumentException: x + width must be <= bitmap.width()
-            }
-        }
-
-        function _widgetsToImage(widgets) {
-            let imgs = [];
-            widgets.forEach((widget) => {
-                let img = _widgetToImage(widget);
-                img && imgs.push(img);
-            });
-            return _stitchImg(imgs);
-        }
-
-        function _stitchImg(imgs) {
-            let _isImgWrap = o => _getType(o) === 'ImageWrapper';
-            if (_isImgWrap(imgs) && !Array.isArray(imgs)) {
-                return imgs;
-            }
-            if (imgs.length === 1) {
-                return imgs[0];
-            }
-            let _stitched = imgs[0];
-            imgs.forEach((img, idx) => {
-                if (idx) {
-                    _stitched = images.concat(_stitched, img, 'BOTTOM');
-                }
-            });
-            return _stitched;
-        }
-    }
-
-    function _isRecycled(img) {
-        if (!img) {
-            return true;
-        }
-        try {
-            img.getHeight();
-            return false;
-        } catch (e) {
-            return !!e.message.match(/has been recycled/);
-        }
     }
 }
 
@@ -2313,4 +1592,15 @@ function stabilizer(num_generator, init_value, generator_timeout, stable_thresho
     }
 
     return _old;
+}
+
+// tool function(s) //
+
+function _makeSureSelObject() {
+    if (typeof $$sel === 'undefined') {
+        if (!files.exists('./ext-a11y.js')) {
+            throw Error('Cannot locate ext-a11y.js');
+        }
+        require('./ext-a11y').load();
+    }
 }
