@@ -1,26 +1,42 @@
-// given that there are bugs with dialogs modules
-// in auto.js versions like 4.1.0 Alpha5 and 4.1.1 Alpha2
+let {
+    $$und, $$func, $$F, isXMLType,
+} = require('./mod-global');
+let {colorsx} = require('./ext-colors');
+let {consolex} = require('./ext-console');
 
-// in another way, extended functions like
-// dialogsx.builds() and dialogsx.getContentText()
-// could make things easier to some extent
+/* Here, importClass() is not recommended for intelligent code completion in IDE like WebStorm. */
+/* The same is true of destructuring assignment syntax (like `let {Uri} = android.net`). */
 
-global.dialogsx = typeof global.dialogsx === 'object' ? global.dialogsx : {};
+let WindowManager = android.view.WindowManager;
+let LayoutParams = WindowManager.LayoutParams;
+let Looper = android.os.Looper;
+let Linkify = android.text.util.Linkify;
+let ColorStateList = android.content.res.ColorStateList;
+let ColorDrawable = android.graphics.drawable.ColorDrawable;
+let JsDialog = com.stardust.autojs.core.ui.dialog.JsDialog;
+let DialogAction = com.afollestad.materialdialogs.DialogAction;
+let MaterialDialog = com.afollestad.materialdialogs.MaterialDialog;
 
-require('./ext-colors').load();
+let _ = {
+    contents: require('../assets/data/dialog-contents'),
+    /**
+     * Same as uix.isUiThread() but not as uix.isUiMode()
+     * @return {boolean}
+     * @see uix.isUiThread
+     */
+    isUiThread: () => Looper.myLooper() === Looper.getMainLooper(),
+    rtDialogs: () => _.isUiThread() ? runtime.dialogs : runtime.dialogs.nonUiDialogs,
+};
 
-let isUiThread = () => android.os.Looper.myLooper() === android.os.Looper.getMainLooper();
-let rtDialogs = () => isUiThread() ? runtime.dialogs : runtime.dialogs.nonUiDialogs;
-
-let ext = {
-    _colors: {
+let exp = {
+    colors: {
         /**
          * @param {
-         *     ColorParam|DialogsxColorTitle|DialogsxColorContent|
-         *     DialogsxColorProgress|DialogsxColorButton
+         *     Dialogsx.Title.Color|Dialogsx.Content.Color|
+         *     Dialogsx.Progress.Color|Dialogsx.Button.Color
          * } color
          * @param {'title'|'content'|'progress'|'button'} type
-         * @returns {string}
+         * @return {string}
          */
         wrap(color, type) {
             if (type && this[type]) {
@@ -35,96 +51,112 @@ let ext = {
             }
             return color;
         },
-        /** @typedef {'default'|'caution'|'alert'} DialogsxColorTitle */
         title: {
             default: '#212121', // Auto.js 4.1.1 Alpha2
-            caution: '#880e4f',
-            alert: ['#c51162', '#ffeffe'],
+            caution: '#880E0E',
+            warn: '#880E4F',
+            alert: ['#C51162', '#FFEFFE'],
         },
-        /** @typedef {'default'|'warn'|'alert'} DialogsxColorContent */
         content: {
             default: '#757575', // Auto.js 4.1.1 Alpha2
-            warn: '#ad1457',
-            alert: ['#283593', '#e1f5fe'],
+            caution: '#AD1414',
+            warn: '#AD1457',
+            alert: ['#283593', '#E1F5FE'],
         },
-        /**
-         * @typedef {
-         *     'alert'|'files'|'backup'|'restore'|'indeterminate'|
-         *     'finish'|'success'|'error'|'failure'
-         * } DialogsxColorProgress
-         */
         progress: {
             /* [progress_tint, progress_bg_tint, action_button ] */
-            download: ['#ff6f00', '#ffecb3', '#c43e00'],
-            files: ['#f9a825', '#fff59d', '#c17900'],
-            backup: ['#455a64', '#eceff1', '#1c313a'],
-            restore: ['#ab47bc', '#f3e5f5', '#790e8b'],
-            indeterminate: ['#00897b', '#b2dfdb', '#005b4f'],
-            finish: ['#00c853', '#dcedc8', '#009624'],
-            success: ['#00c853', '#dcedc8', '#009624'],
-            error: ['#1565c0', '#bbdefb', '#003c8f'],
-            failure: ['#1565c0', '#bbdefb', '#003c8f'],
+            download: ['#FF6F00', '#FFECB3', '#C43E00'],
+            files: ['#F9A825', '#FFF59D', '#C17900'],
+            backup: ['#455A64', '#ECEFF1', '#1C313A'],
+            restore: ['#AB47BC', '#F3E5F5', '#790E8B'],
+            indeterminate: ['#00897B', '#B2DFDB', '#005B4F'],
+            finish: ['#00C853', '#DCEDC8', '#009624'],
+            success: ['#00C853', '#DCEDC8', '#009624'],
+            error: ['#1565C0', '#BBDEFB', '#003C8F'],
+            failure: ['#1565C0', '#BBDEFB', '#003C8F'],
         },
-        /**
-         * @typedef {
-         *     'default_aj_4'|'default'|'caution'|'warn'|'attraction'|'hint'|
-         *     'reset'|'unavailable'|'finish'|'success'|'error'|'failure'
-         * } DialogsxColorButton
-         */
         button: {
-            default_aj_4: '#01a9f3', // Auto.js 4.1.1 Alpha2
-            default: '#03a9f4', // override
-            caution: '#ff3d00',
-            warn: '#f57c00',
-            attraction: '#7b1fa2',
-            hint: '#0da798',
-            reset: '#a1887f',
-            unavailable: '#bdbdbd',
+            default_aj_4: '#01A9F3', // Auto.js 4.1.1 Alpha2
+            default: '#03A9F4', // override
+            caution: '#FF3D00',
+            warn: '#F57C00',
+            attraction: '#7B1FA2',
+            hint: '#0DA798',
+            reset: '#A1887F',
+            unavailable: '#BDBDBD',
             finish: '#009624',
             success: '#009624',
-            error: '#003c8f',
-            failure: '#003c8f',
+            error: '#003C8F',
+            failure: '#003C8F',
         },
     },
-    _text: {
-        /**
-         * @description F: finish
-         * @description B: back
-         * @description Q: quit
-         * @description X: exit
-         * @description I: interrupt
-         * @description K: ok
-         * @description S: sure
-         * @description C: close
-         * @description D: delete
-         * @description N: continue
-         * @description M: sure to modify
-         * @description R: reset to default
-         * @typedef {'F'|'B'|'Q'|'X'|'I'|'K'|'S'|'C'|'D'|'N'|'M'|'R'} DialogsxButtonText
-         */
-        _btn: {
+    text: {
+        btn: {
             F: '完成', B: '返回', Q: '放弃', X: '退出',
             I: '终止', K: '确定', S: '确认',
             C: '关闭', D: '删除', N: '继续',
-            M: '确认修改', R: '设为默认值',
+            M: '确认修改', R: '使用默认值', T: '了解更多',
         },
         no_more_prompt: '不再提示',
         user_interrupted: '用户终止',
     },
+    pool: {
+        /** @type {Object.<string,JsDialog$>} */
+        _data: {},
+        /**
+         * @template {!JsDialog$} T
+         * @param {T} d
+         * @param {string} [name_prefix]
+         * @return {T}
+         */
+        add(d, name_prefix) {
+            if (isNullish(d)) {
+                return d;
+            }
+            return this._data[(name_prefix || '') + exp.getName(d)] = d;
+        },
+        /**
+         * @param {string} name
+         * @return {!JsDialog$|void}
+         */
+        get(name) {
+            return this._data[name];
+        },
+        clear() {
+            let _ctr = 0;
+            Object.keys(this._data).forEach((k) => {
+                let _diag = this._data[k];
+                if (_diag instanceof JsDialog) {
+                    _ctr += 1;
+                    _diag.dismiss();
+                }
+                delete this._data[k];
+            });
+            if (_ctr > 0) {
+                consolex._('清理扩展对话框样本池: ' + _ctr + '项', 0, 0, -2);
+            }
+        },
+    },
+    /**
+     * @param {JsDialog$} d
+     * @return {string}
+     */
+    getName(d) {
+        return '@' + java.lang.Integer.toHexString(d.hashCode());
+    },
     /**
      * Substitution of dialog.build()
-     * @returns {JsDialog$}
+     * @return {JsDialog$}
      */
     build(props) {
-        let _dialogsx = this;
         let builder = Object.create(runtime.dialogs.newBuilder());
         builder.thread = threads.currentThread();
 
-        Object.keys(props).forEach(n => applyDialogProperty(builder, n, props[n]));
+        Object.keys(props).forEach(n => applyDialogProperty.call(this, builder, n, props[n]));
 
         applyOtherDialogProperties(builder, props);
 
-        return ui.run(builder.buildDialog.bind(builder));
+        return this.pool.add(ui.run(builder.buildDialog.bind(builder)));
 
         // tool function(s) //
 
@@ -139,11 +171,11 @@ let ext = {
                 contentLineSpacing: null,
                 items: null,
                 itemsColor: {adapter: colorsx.toInt},
-                positive: {method: 'positiveText', adapter: _parseBtnText},
+                positive: {method: 'positiveText', adapter: text => this.text.btn[text] || text},
                 positiveColor: {adapter: colorsx.toInt},
-                neutral: {method: 'neutralText', adapter: _parseBtnText},
+                neutral: {method: 'neutralText', adapter: text => this.text.btn[text] || text},
                 neutralColor: {adapter: colorsx.toInt},
-                negative: {method: 'negativeText', adapter: _parseBtnText},
+                negative: {method: 'negativeText', adapter: text => this.text.btn[text] || text},
                 negativeColor: {adapter: colorsx.toInt},
                 cancelable: null,
                 canceledOnTouchOutside: null,
@@ -213,8 +245,7 @@ let ext = {
             }
             if (properties.customView !== undefined) {
                 let customView = properties.customView;
-                // noinspection JSTypeOfValues
-                if (typeof customView === 'xml' || typeof customView === 'string') {
+                if (isXMLType(customView) || typeof customView === 'string') {
                     customView = ui.run(() => ui.inflate(customView));
                 }
                 let wrapInScrollView = properties.wrapInScrollView;
@@ -234,110 +265,144 @@ let ext = {
                 return jsArray;
             }
         }
-
-        function _parseBtnText(text) {
-            return _dialogsx._text._btn[text] || text;
-        }
     },
     /**
-     * @typedef {string|[string, DialogsxColorTitle]} Builds$title
-     * @typedef {string|[string, DialogsxColorContent]} Builds$content
-     * @typedef {DialogsxButtonText|[DialogsxButtonText, DialogsxColorButton]|number} Builds$neutral
-     * @typedef {DialogsxButtonText|[DialogsxButtonText, DialogsxColorButton]|number} Builds$negative
-     * @typedef {DialogsxButtonText|[DialogsxButtonText, DialogsxColorButton]|number} Builds$positive
-     * @typedef {number|boolean} Builds$keep
-     * @typedef {number|boolean|string} Builds$checkbox
-     * @typedef {
-     *     [Builds$title, Builds$content, Builds$neutral, Builds$negative, Builds$positive, Builds$keep, Builds$checkbox]|
-     *     [Builds$title, Builds$content, Builds$neutral, Builds$negative, Builds$positive, Builds$keep]|
-     *     [Builds$title, Builds$content, Builds$neutral, Builds$negative, Builds$positive]|
-     *     [Builds$title, Builds$content, Builds$neutral, Builds$negative]|
-     *     [Builds$title, Builds$content, Builds$neutral]|
-     *     [Builds$title, Builds$content]|
-     *     [Builds$title]|string
-     * } Builds$Properties
-     * @typedef {DialogsBuildProperties & {
-     *     disable_back?: boolean|Function,
-     *     linkify?: Dialogsx$Linkify$Mask,
-     * }} Builds$Extensions
-     */
-    /**
-     * @param {Builds$Properties} props
-     * @param {Builds$Extensions} [ext]
-     * @returns {JsDialog$}
+     * @param {Dialogsx.Builds.Property|Dialogsx.Builds.Extension} props
+     * @param {Dialogsx.Builds.Extension} [ext]
+     * @return {JsDialog$}
      */
     builds(props, ext) {
+        if (isPlainObject(props)) {
+            return this.builds('', props);
+        }
         let [
-            $tt, $cnt, $neu, $neg, $pos, $keep, $cbx,
+            $tt, $cnt, $neu, $neg, $pos, $obstinate, $cbx,
         ] = typeof props === 'string' ? [props] : props;
 
         let _props = {
-            autoDismiss: !$keep,
-            canceledOnTouchOutside: !$keep,
+            autoDismiss: !$obstinate,
+            canceledOnTouchOutside: !$obstinate,
             checkBoxPrompt: $cbx ? typeof $cbx === 'string'
-                ? $cbx : this._text.no_more_prompt : undefined,
+                ? $cbx : this.text.no_more_prompt : undefined,
         };
 
         let _ext = ext || {};
 
         void [
-            ['title', $tt, this._colors.title],
-            ['content', $cnt, this._colors.content,
-                require('./mod-treasury-vault').dialog_contents || {},
-            ],
-            ['neutral', $neu, this._colors.button, this._text._btn],
-            ['negative', $neg, this._colors.button, this._text._btn],
-            ['positive', $pos, this._colors.button, this._text._btn],
-        ].forEach(arr => _parseAndColorUp.apply(null, arr));
+            ['title', $tt, this.colors.title],
+            ['content', $cnt, this.colors.content],
+            ['neutral', $neu, this.colors.button, this.text.btn],
+            ['negative', $neg, this.colors.button, this.text.btn],
+            ['positive', $pos, this.colors.button, this.text.btn],
+        ].map((arr) => {
+            let [key, data] = arr;
+            if ($$und(data) && !$$und(_ext[key])) {
+                arr.splice(1, 1, _ext[key]);
+            }
+            return arr;
+        }).forEach(arr => _parseAndColorUp.apply(this, arr));
 
-        let _diag = this.build(Object.assign(_props, _ext));
+        Object.assign(_props, _ext);
+        ['title', 'content'].forEach((k) => {
+            if (k in _props) {
+                _props[k] = String(_props[k]);
+            }
+        });
+
+        let _diag = this.build(_props);
 
         if (_ext.linkify) {
             this.linkify(_diag);
         }
-        if (_ext.disable_back) {
-            this.disableBack(_diag, _ext.disable_back);
+        if (_ext.keycode_back !== undefined) {
+            let _v = _ext.keycode_back;
+            if (_v === 'disabled' || $$func(_v) || $$F(_v)) {
+                this.disableBack(_diag, _v);
+            }
         }
+
+        ui.post(() => {
+            let _win = _diag.getWindow();
+
+            let _dim = _ext.dim_amount;
+            if (typeof _dim === 'number') {
+                while (_dim > 1) {
+                    _dim /= 100;
+                }
+                _win.setDimAmount(_dim);
+            }
+
+            let _bg = _ext.background;
+            if (typeof _bg === 'string') {
+                _bg.match(/^#/)
+                    ? _win.setBackgroundDrawable(new ColorDrawable(colorsx.toInt(_bg)))
+                    : _win.setBackgroundDrawableResource(android.R.color[_bg]);
+            } else if (typeof _bg === 'number') {
+                _win.setBackgroundDrawable(new ColorDrawable(_bg));
+            }
+
+            let _anm = _ext.animation;
+            if (typeof _anm === 'string') {
+                _anm = _anm.split('_').map(s => s.toTitleCase()).join('');
+                _anm === 'Default'
+                    ? _win.setWindowAnimations(android.R.style.Animation)
+                    : _win.setWindowAnimations(android.R.style['Animation_' + _anm]);
+            }
+
+            let _is_keep_screen_on = _ext.is_keep_screen_on;
+            if (typeof _is_keep_screen_on !== 'undefined') {
+                if (_is_keep_screen_on) {
+                    _win.addFlags(LayoutParams.FLAG_KEEP_SCREEN_ON);
+                }
+            }
+        });
 
         return _diag;
 
         // tool function(s) //
 
         function _parseAndColorUp(key, data, color_lib, text_lib) {
-            if (!_ext[key]) {
+            if (!_ext[key] || Array.isArray(_ext[key])) {
                 let [_text, _color] = Array.isArray(data) ? data : [data];
                 if (_text) {
+                    if (key === 'content' && !text_lib) {
+                        text_lib = _.contents;
+                    }
                     _ext[key] = text_lib && text_lib[_text] || _text;
                 }
-                _ext[key + 'Color'] = color_lib[_color] || _color || color_lib.default;
+                let _k_c = key + 'Color';
+                let _c = _ext[_k_c] || color_lib[_color] || _color || color_lib.default;
+                _ext[_k_c] = colorsx.toInt(_c);
             }
         }
     },
     /**
      * @param {string} title
      * @param {string} [prefill]
-     * @param {*} [callback]
-     * @returns {Promise<unknown>|*}
+     * @param {function} [callback]
+     * @return {Promise<void>|*}
      */
     rawInput(title, prefill, callback) {
-        return isUiThread() && !callback ? new Promise((res) => {
-            rtDialogs().rawInput(title, prefill || '', function () {
+        return _.isUiThread() && !callback ? new Promise((res) => {
+            _.rtDialogs().rawInput(title, prefill || '', function () {
                 res.apply(null, [].slice.call(arguments));
             });
-        }) : rtDialogs().rawInput(title, prefill || '', callback || null);
+        }) : _.rtDialogs().rawInput(title, prefill || '', callback || null);
     },
     /**
      * @param {string} title
      * @param {string} [prefill]
-     * @param {*} [callback]
-     * @returns {Promise<unknown>|*}
+     * @param {function} [callback]
+     * @return {Promise<*>|*}
      */
     input(title, prefill, callback) {
         if (callback) {
             return this.rawInput(title, prefill || '', str => callback(eval(str)));
         }
-        if (isUiThread()) {
-            return new Promise(res => rtDialogs().rawInput(title, prefill || '', s => res(eval(s))));
+        if (_.isUiThread()) {
+            return new Promise((res) => {
+                _.rtDialogs().rawInput(title, prefill || '', s => res(eval(s)));
+            });
         }
         let input = this.rawInput(title, prefill || '', callback || null);
         if (typeof input === 'string') {
@@ -347,15 +412,15 @@ let ext = {
     /**
      * @param {string} title
      * @param {string} [prefill]
-     * @param {*} [callback]
-     * @returns {Promise<unknown>|*}
+     * @param {function} [callback]
+     * @return {Promise<void>|*}
      */
     alert(title, prefill, callback) {
-        return isUiThread() && !callback ? new Promise((res) => {
-            rtDialogs().alert(title, prefill || '', function () {
+        return _.isUiThread() && !callback ? new Promise((res) => {
+            _.rtDialogs().alert(title, prefill || '', function () {
                 res.apply(null, [].slice.call(arguments));
             });
-        }) : rtDialogs().alert(title, prefill || '', callback || null);
+        }) : _.rtDialogs().alert(title, prefill || '', callback || null);
     },
     /**
      * Show a message in dialogs title view (as toast message may be covered by dialog view)
@@ -377,15 +442,14 @@ let ext = {
             _titles[d].ori_text = _ori_txt = _ori_view.getText();
         }
         if (!_ori_color) {
-            _titles[d].ori_text_color = _ori_color = _ori_view.getTextColors().colors[0];
+            _titles[d].ori_text_color = _ori_color = _ori_view.getTextColors()
+                .getColorForState(util.java.array('int', 0), colors.parseColor('#de000000'));
         }
         if (!_ori_bg_color) {
-            let _ori_view_bg_d = _ori_view.getBackground();
-            _ori_bg_color = _ori_view_bg_d && _ori_view_bg_d.getColor() || -1;
-            _titles[d].ori_bg_color = _ori_bg_color;
+            _titles[d].ori_bg_color = -1;
         }
 
-        _setTitle(d, msg, this._colors.title.alert.map(colorsx.toInt));
+        _setTitle(d, msg, this.colors.title.alert.map(colorsx.toInt));
 
         duration === 0 || setTimeout(function () {
             --_titles.message_showing || _setTitle(d, _ori_txt, [_ori_color, _ori_bg_color]);
@@ -407,14 +471,13 @@ let ext = {
      * Replace or append a message in dialogs content view
      * @param {JsDialog$|MaterialDialog$} d
      * @param {string} msg - message shown in content view
-     * @param {boolean|'append'} [is_append=false]
-     * - whether original content is reserved or not
+     * @param {boolean|'append'} [is_append=false] - whether original content is reserved or not
      */
     alertContent(d, msg, is_append) {
         let _ori_view = d.getContentView();
         let _ori_text = _ori_view.getText().toString();
         let _is_append = is_append === 'append' || is_append === true;
-        let [_c_text, _c_bg] = this._colors.content.alert.map(colorsx.toInt);
+        let [_c_text, _c_bg] = this.colors.content.alert.map(s => colorsx.toInt(s));
 
         ui.post(() => {
             _ori_view.setText((_is_append ? _ori_text + '\n\n' : '') + msg);
@@ -425,8 +488,8 @@ let ext = {
     /**
      * @param {string} title
      * @param {string} [prefill]
-     * @param {*} [callback]
-     * @returns {Promise<unknown>|*}
+     * @param {function} [callback]
+     * @return {Promise<*>|*}
      */
     prompt(title, prefill, callback) {
         return this.rawInput(title, prefill, callback);
@@ -434,52 +497,52 @@ let ext = {
     /**
      * @param {string} title
      * @param {string} [prefill]
-     * @param {*} [callback]
-     * @returns {Promise<unknown>|*}
+     * @param {function} [callback]
+     * @return {Promise<void>|*}
      */
     confirm(title, prefill, callback) {
-        return isUiThread() && !callback ? new Promise((res) => {
-            rtDialogs().confirm(title, prefill || '', function () {
+        return _.isUiThread() && !callback ? new Promise((res) => {
+            _.rtDialogs().confirm(title, prefill || '', function () {
                 res.apply(null, [].slice.call(arguments));
             });
-        }) : rtDialogs().confirm(title, prefill || '', callback || null);
+        }) : _.rtDialogs().confirm(title, prefill || '', callback || null);
     },
     /**
      * @param {string} title
      * @param {string[]|string} items
-     * @param {*|string} [callback]
-     * @returns {Promise<unknown>|*}
+     * @param {function} [callback]
+     * @return {Promise<void>|*}
      */
     select(title, items, callback) {
         if (items instanceof Array) {
-            return isUiThread() && !callback ? new Promise((res) => {
-                rtDialogs().select(title, items, function () {
+            return _.isUiThread() && !callback ? new Promise((res) => {
+                _.rtDialogs().select(title, items, function () {
                     res.apply(null, [].slice.call(arguments));
                 });
-            }) : rtDialogs().select(title, items, callback || null);
+            }) : _.rtDialogs().select(title, items, callback || null);
         }
-        return rtDialogs().select(title, [].slice.call(arguments, 1), null);
+        return _.rtDialogs().select(title, [].slice.call(arguments, 1), null);
     },
     /**
      * @param {string} title
      * @param {string[]} items
      * @param {number} [index=0]
-     * @param {*} [callback]
-     * @returns {Promise<unknown>|*}
+     * @param {function} [callback]
+     * @return {Promise<void>|*}
      */
     singleChoice(title, items, index, callback) {
-        return isUiThread() && !callback ? new Promise((res) => {
-            rtDialogs().singleChoice(title, index || 0, items, function () {
+        return _.isUiThread() && !callback ? new Promise((res) => {
+            _.rtDialogs().singleChoice(title, index || 0, items, function () {
                 res.apply(null, [].slice.call(arguments));
             });
-        }) : rtDialogs().singleChoice(title, index || 0, items, callback || null);
+        }) : _.rtDialogs().singleChoice(title, index || 0, items, callback || null);
     },
     /**
      * @param {string} title
      * @param {string[]} items
      * @param {number[]} [indices]
-     * @param {*} [callback]
-     * @returns {Promise<unknown>|*[]}
+     * @param {function} [callback]
+     * @return {Promise<void>|*[]}
      */
     multiChoice(title, items, indices, callback) {
         let arr = (javaArr) => {
@@ -489,38 +552,48 @@ let ext = {
             }
             return jsArray;
         };
-        return !callback ? isUiThread()
-            ? new Promise(res => rtDialogs().multiChoice(title, indices || [], items, r => res(arr(r))))
-            : arr(rtDialogs().multiChoice(title, indices || [], items, null))
-            : arr(rtDialogs().multiChoice(title, indices || [], items, r => callback(arr(r))));
+        return callback
+            ? arr(_.rtDialogs().multiChoice(title, indices || [], items, r => callback(arr(r))))
+            : _.isUiThread()
+                ? new Promise((res) => {
+                    _.rtDialogs().multiChoice(title, indices || [], items, r => res(arr(r)));
+                })
+                : arr(_.rtDialogs().multiChoice(title, indices || [], items, null));
     },
     /**
-     * @param {...(JsDialog$|MaterialDialog$)} [d]
+     * @param {...JsDialog$|JsDialog$[]|MaterialDialog$|MaterialDialog$[]} [d]
      */
     dismiss(d) {
         (Array.isArray(d) ? d : [].slice.call(arguments)).forEach((o) => {
             typeof o === 'object' && o.dismiss && o.dismiss();
         });
     },
+    clearPool() {
+        this.pool.clear();
+    },
     /**
-     * @param {JsDialog$|MaterialDialog$} d
-     * @param {Function} [f]
-     * @returns {JsDialog$|MaterialDialog$}
+     * @template {JsDialog$|MaterialDialog$} T
+     * @param {T} d
+     * @param {function(T)|*} [f]
+     * @return {T}
      */
     disableBack(d, f) {
         // to prevent dialog from being dismissed
         // by pressing 'back' button (usually by accident)
         d.setOnKeyListener({
-            onKey(diag, key_code) {
-                typeof f === 'function' && f();
-                return key_code === android.view.KeyEvent.KEYCODE_BACK;
+            onKey(diag, key_code, event) {
+                if (event.getAction() !== KeyEvent.ACTION_UP) {
+                    return false;
+                }
+                typeof f === 'function' && f(d);
+                return key_code === KeyEvent.KEYCODE_BACK;
             },
         });
         return d;
     },
     /**
      * @param {JsDialog$|MaterialDialog$} d
-     * @returns {string}
+     * @return {string}
      */
     getTitleText(d) {
         return d ? d.getTitleView().getText().toString() : '';
@@ -536,20 +609,20 @@ let ext = {
     },
     /**
      * @param {JsDialog$|MaterialDialog$} d
-     * @param {ColorParam|DialogsxColorTitle} color
+     * @param {Dialogsx.Title.Color} color
      */
     setTitleTextColor(d, color) {
         ui.run(() => {
-            d && d.getTitleView().setTextColor(colorsx.toInt(this._colors.wrap(color, 'title')));
+            d && d.getTitleView().setTextColor(colorsx.toInt(this.colors.wrap(color, 'title')));
         });
     },
     /**
      * @param {JsDialog$|MaterialDialog$} d
-     * @param {ColorParam|DialogsxColorTitle} color
+     * @param {Dialogsx.Title.Color} color
      */
     setTitleBackgroundColor(d, color) {
         ui.run(() => {
-            d && d.getTitleView().setBackgroundColor(colorsx.toInt(this._colors.wrap(color, 'title')));
+            d && d.getTitleView().setBackgroundColor(colorsx.toInt(this.colors.wrap(color, 'title')));
         });
     },
     /**
@@ -578,20 +651,20 @@ let ext = {
     },
     /**
      * @param {JsDialog$|MaterialDialog$} d
-     * @param {ColorParam|DialogsxColorContent} color
+     * @param {Dialogsx.Content.Color} color
      */
     setContentTextColor(d, color) {
         ui.run(() => {
-            d && d.getContentView().setTextColor(colorsx.toInt(this._colors.wrap(color, 'content')));
+            d && d.getContentView().setTextColor(colorsx.toInt(this.colors.wrap(color, 'content')));
         });
     },
     /**
      * @param {JsDialog$|MaterialDialog$} d
-     * @param {ColorParam|DialogsxColorContent} color
+     * @param {Dialogsx.Content.Color} color
      */
     setContentBackgroundColor(d, color) {
         ui.run(() => {
-            d && d.getContentView().setBackgroundColor(colorsx.toInt(this._colors.wrap(color, 'content')));
+            d && d.getContentView().setBackgroundColor(colorsx.toInt(this.colors.wrap(color, 'content')));
         });
     },
     /**
@@ -602,16 +675,15 @@ let ext = {
     },
     /**
      * @param {JsDialog$|MaterialDialog$} d
-     * @param {string|{toString:function():string}} [str='']
+     * @param {string|{toString:function():string}} [s='']
      */
-    setInputText(d, str) {
-        ui.run(() => {
-            d && d.getInputEditText().setText(str ? str.toString() : '');
-        });
+    setInputText(d, s) {
+        let _s = typeof s === 'string' ? s : typeof s !== 'undefined' ? s.toString() : '';
+        ui.run(() => d && d.getInputEditText().setText(_s));
     },
     /**
      * @param {JsDialog$|MaterialDialog$} d
-     * @param {ColorParam} color
+     * @param {Color$} color
      */
     setInputTextColor(d, color) {
         ui.run(() => {
@@ -620,7 +692,7 @@ let ext = {
     },
     /**
      * @param {JsDialog$|MaterialDialog$} d
-     * @param {ColorParam} color
+     * @param {Color$} color
      */
     setInputBackgroundColor(d, color) {
         ui.run(() => {
@@ -628,101 +700,130 @@ let ext = {
         });
     },
     /**
-     * @typedef {'ALL'|'EMAIL_ADDRESSES'|'MAP_ADDRESSES'|'PHONE_NUMBERS'|'WEB_URLS'} Dialogsx$Linkify$Mask
-     */
-    /**
      * @param {JsDialog$|MaterialDialog$} d
-     * @param {Dialogsx$Linkify$Mask} [mask='ALL']
+     * @param {Dialogsx.LinkifyMask} [mask='ALL']
      */
     linkify(d, mask) {
         if (d) {
             let _cnt_vw = d.getContentView();
             ui.run(() => {
                 let _cnt_text = _cnt_vw.getText().toString();
-                _cnt_vw.setAutoLinkMask(android.text.util.Linkify[mask || 'ALL']);
+                _cnt_vw.setAutoLinkMask(Linkify[mask || 'ALL']);
                 _cnt_vw.setText(_cnt_text);
             });
         }
     },
     /**
      * @param {'positive'|'negative'|'neutral'} action
-     * @returns {com.afollestad.materialdialogs.DialogAction}
+     * @return {?com.afollestad.materialdialogs.DialogAction}
      */
     getDialogAction(action) {
-        switch (action) {
-            case 'positive':
-                return com.afollestad.materialdialogs.DialogAction.POSITIVE;
-            case 'negative':
-                return com.afollestad.materialdialogs.DialogAction.NEGATIVE;
-            case 'neutral':
-                return com.afollestad.materialdialogs.DialogAction.NEUTRAL;
-            default:
-                throw TypeError('unknown action of dialogsx.getDialogAction');
+        try {
+            switch (action.toLowerCase()) {
+                case 'positive':
+                    return DialogAction.valueOf('POSITIVE');
+                case 'negative':
+                    return DialogAction.valueOf('NEGATIVE');
+                case 'neutral':
+                    return DialogAction.valueOf('NEUTRAL');
+            }
+        } catch (e) {
+            // Java class "com.afollestad.materialdialogs.DialogAction"
+            // has no public instance field or method named "%ACTION%"
+            return null;
         }
+        throw TypeError('unknown action of dialogsx.getDialogAction');
     },
     /**
      * Compatible for MaterialDialog.getActionButton()
      * @param {JsDialog$|MaterialDialog$} d
      * @param {'positive'|'negative'|'neutral'} action
-     * @returns {string}
+     * @return {string}
      */
     getActionButton(d, action) {
-        return d instanceof com.afollestad.materialdialogs.MaterialDialog
-            ? d.getActionButton(this.getDialogAction(action)).getText().toString()
-            : d.getActionButton(action);
+        let _act = action.toLowerCase();
+        if (d instanceof MaterialDialog) {
+            let _d_act = this.getDialogAction(_act);
+            if (_d_act !== null) {
+                return d.getActionButton(_d_act).getText().toString();
+            }
+            if (typeof d[_act + 'Button'] === 'object') {
+                return d[_act + 'Button']['getText']();
+            }
+        }
+        return d instanceof JsDialog ? d.getActionButton(_act) : '';
     },
     /**
      * Compatible for MaterialDialog.setActionButton()
      * @param {JsDialog$|MaterialDialog$} d
-     * @param {'positive'|'negative'|'neutral'} action
-     * @param {ColorParam|DialogsxColorButton} [color]
-     * @param {string|null} title
+     * @param {'positive'|'negative'|'neutral'|('positive'|'negative'|'neutral')[]} action
+     * @param {?string} title
+     * @param {Dialogsx.Button.Color} [color]
      */
     setActionButton(d, action, title, color) {
-        return d instanceof com.afollestad.materialdialogs.MaterialDialog
-            ? ui.run(() => {
-                d.setActionButton(this.getDialogAction(action), title);
-                color && this.setActionButtonColor(d, action, color);
-            })
-            : ui.run(() => {
-                d.setActionButton(action, title);
-                color && this.setActionButtonColor(d, action, color);
-            });
+        let _set = function (action) {
+            let _act = action.toLowerCase();
+            d instanceof MaterialDialog
+                ? ui.run(() => {
+                    let _d_act = this.getDialogAction(_act);
+                    if (_d_act !== null) {
+                        d.setActionButton(_d_act, title);
+                    } else if (typeof d[_act + 'Button'] === 'object') {
+                        d[_act + 'Button']['setText'](title);
+                    }
+                })
+                : ui.run(() => d.setActionButton(_act, title));
+            color && this.setActionButtonColor(d, _act, color);
+        }.bind(this);
+
+        Array.isArray(action) ? action.forEach(_set) : _set(action);
     },
     /**
      * @param {JsDialog$|MaterialDialog$} d
-     * @param {'positive'|'negative'|'neutral'} action
-     * @param {ColorParam|DialogsxColorButton} color
+     * @param {'positive'|'negative'|'neutral'|('positive'|'negative'|'neutral')[]} action
+     * @param {Dialogsx.Button.Color} color
      */
     setActionButtonColor(d, action, color) {
-        let _action = com.afollestad.materialdialogs.DialogAction[action.toUpperCase()];
-        let _c_int = colorsx.toInt(this._colors.wrap(color, 'button'));
-        let _csl = android.content.res.ColorStateList.valueOf(_c_int);
-        d.getActionButton(_action).setTextColor(_csl);
+        let _set = function (action) {
+            let _act = action.toLowerCase();
+            let _c_int = colorsx.toInt(this.colors.wrap(color, 'button'));
+            let _d_act = this.getDialogAction(_act);
+            ui.run(() => {
+                if (_d_act !== null) {
+                    return d.getActionButton(_d_act).setTextColor(_c_int);
+                }
+                if (d instanceof MaterialDialog) {
+                    if (typeof d[_act + 'Button'] === 'object') {
+                        return d[_act + 'Button']['setTextColor'](_c_int);
+                    }
+                }
+            });
+        }.bind(this);
+
+        Array.isArray(action) ? action.forEach(_set) : _set(action);
     },
     /**
-     * @param {Builds$Properties} props
-     * @param {Builds$Extensions & {
+     * @param {Dialogsx.Builds.Property} props
+     * @param {Dialogsx.Builds.Extension | {
      *     timeout?: number,
-     *     timeout_button?: DialogActionButton,
-     *     onNeutral?: function(d:BuildCountdownExtendedJsDialog),
-     *     onNegative?: function(d:BuildCountdownExtendedJsDialog),
-     *     onPositive?: function(d:BuildCountdownExtendedJsDialog),
-     *     onTimeout?: function(d:BuildCountdownExtendedJsDialog):DialogActionButton|DialogActionButton,
-     *     onPause?: function(d:BuildCountdownExtendedJsDialog)|{
+     *     timeout_button?: Dialogs.ActionButton,
+     *     onNeutral?: function(d:Dialogsx.BuildCountdown.Extension),
+     *     onNegative?: function(d:Dialogsx.BuildCountdown.Extension),
+     *     onPositive?: function(d:Dialogsx.BuildCountdown.Extension),
+     *     onTimeout?: function(d:Dialogsx.BuildCountdown.Extension):Dialogs.ActionButton|Dialogs.ActionButton,
+     *     onPause?: function(d:Dialogsx.BuildCountdown.Extension)|{
      *         title?: string|[RegExp|string,string],
      *         content?: string|[RegExp|string,string],
      *         neutral?: string|[RegExp|string,string],
      *         negative?: string|[RegExp|string,string],
      *         positive?: string|[RegExp|string,string],
+     *         action?: function(d:Dialogsx.BuildCountdown.Extension),
      *     },
-     * }} ext
-     * @returns {BuildCountdownExtendedJsDialog}
+     * }} extensions
+     * @return {Dialogsx.BuildCountdown.Extension}
      */
-    buildCountdown(props, ext) {
-        let _ext = Object.assign({
-            disable_back: () => _act.pause(100),
-        }, ext);
+    buildCountdown(props, extensions) {
+        let _ext = Object.assign({keycode_back: () => _act.pause(100)}, extensions);
 
         let _onNeutral = _ext.onNeutral || (r => r);
         let _onNegative = _ext.onNegative || (r => r);
@@ -767,42 +868,42 @@ let ext = {
                         void [{
                             key: 'title',
                             get(d) {
-                                return dialogsx.getTitleText(d);
+                                return exp.getTitleText(d);
                             },
                             set(d, k, v) {
-                                dialogsx.setTitleText(d, v);
+                                exp.setTitleText(d, v);
                             },
                         }, {
                             key: 'content',
                             get(d) {
-                                return dialogsx.getContentText(d);
+                                return exp.getContentText(d);
                             },
                             set(d, k, v) {
-                                dialogsx.setContentText(d, v);
+                                exp.setContentText(d, v);
                             },
                         }, {
                             key: 'neutral',
                             get(d, k) {
-                                return dialogsx.getActionButton(d, k);
+                                return exp.getActionButton(d, k);
                             },
                             set(d, k, v) {
-                                dialogsx.setActionButton(d, k, v);
+                                exp.setActionButton(d, k, v);
                             },
                         }, {
                             key: 'negative',
                             get(d, k) {
-                                return dialogsx.getActionButton(d, k);
+                                return exp.getActionButton(d, k);
                             },
                             set(d, k, v) {
-                                dialogsx.setActionButton(d, k, v);
+                                exp.setActionButton(d, k, v);
                             },
                         }, {
                             key: 'positive',
                             get(d, k) {
-                                return dialogsx.getActionButton(d, k);
+                                return exp.getActionButton(d, k);
                             },
                             set(d, k, v) {
-                                dialogsx.setActionButton(d, k, v);
+                                exp.setActionButton(d, k, v);
                             },
                         }].forEach((o) => {
                             let _k = o.key;
@@ -822,7 +923,7 @@ let ext = {
                     }
                 }, interval || 800);
             },
-            /** @param {BuildCountdownExtendedBlockOptions} [o] */
+            /** @param {Dialogsx.BuildCountdown.Block} [o] */
             block(o) {
                 let _o = o || {};
                 let _onStart = _o.onStart || (r => r);
@@ -848,32 +949,19 @@ let ext = {
             },
         };
 
-        let _diag = Object.create(dialogsx.builds(props, _ext)
+        let _diag = Object.create(exp.builds(props, _ext)
             .on('neutral', () => _act.neutral())
             .on('negative', () => _act.negative())
             .on('positive', () => _act.positive()));
 
-        /**
-         * @typedef {{
-         *     timeout?: number,
-         *     onStart?: function(d:BuildCountdownExtendedJsDialog),
-         *     onTimeout?: function(d:BuildCountdownExtendedJsDialog),
-         *     onUnblock?: function(d:BuildCountdownExtendedJsDialog),
-         * }} BuildCountdownExtendedBlockOptions
-         * @typedef {{
-         *     act: function(): BuildCountdownExtendedJsDialog,
-         *     block: function(o:BuildCountdownExtendedBlockOptions): BuildCountdownExtendedJsDialog,
-         * }} BuildCountdownExtended
-         */
-        /** @typedef {JsDialog$ & BuildCountdownExtended} BuildCountdownExtendedJsDialog */
         let _diag_ext = {
             act() {
                 _diag.isShowing() || _diag.show();
                 return _diag_mixed;
             },
             /**
-             * @param {BuildCountdownExtendedBlockOptions} [o]
-             * @returns {BuildCountdownExtendedJsDialog}
+             * @param {Dialogsx.BuildCountdown.Block} [o]
+             * @return {Dialogsx.BuildCountdown.Extension}
              */
             block(o) {
                 _act.block(o);
@@ -884,7 +972,7 @@ let ext = {
         let _diag_mixed = Object.assign(_diag, _diag_ext);
 
         let _thd_et = threads.start(function () {
-            let _cont = dialogsx.getContentText(_diag);
+            let _cont = exp.getContentText(_diag);
             let _rex = /%timeout%/;
             let _setContent = _cont.match(_rex) ? function (t) {
                 _diag.setContent(_cont.replace(_rex, t.toString()));
@@ -921,19 +1009,19 @@ let ext = {
      * @param {Object} [config]
      * @param {string} [config.title]
      * @param {*} [config.initial_value]
-     * @param {DialogsxButtonText} [config.on_interrupt_btn_text='B']
+     * @param {Dialogsx.Button.Text} [config.on_interrupt_btn_text='B']
      * @param {boolean} [config.show_min_max]
      * @param {{
      *     desc: string,
-     *     action: function(value:*,d:BuildFlowExtendedJsDialog),
+     *     action: function(value:*,d:Dialogsx.BuildFlow.Extension),
      *     onSuccess?: function(value:*),
      *     onFailure?: function(reason:*),
      * }[]} config.steps
      * @param {string} [config.success_title]
      * @param {string} [config.success_content]
-     * @param {function(value:*,d:BuildFlowExtendedJsDialog):*} [config.onStart]
-     * @param {function(value:*,d:BuildFlowExtendedJsDialog):*} [config.onSuccess]
-     * @param {function(err:*,d:BuildFlowExtendedJsDialog):*} [config.onFailure]
+     * @param {function(value:*,d:Dialogsx.BuildFlow.Extension):*} [config.onStart]
+     * @param {function(value:*,d:Dialogsx.BuildFlow.Extension):*} [config.onSuccess]
+     * @param {function(err:*,d:Dialogsx.BuildFlow.Extension):*} [config.onFailure]
      * @example
      * dialogsx.buildFlow({
      *     title: '正在部署项目最新版本',
@@ -941,7 +1029,7 @@ let ext = {
      *     steps: [{
      *         desc: '下载项目数据包',
      *         action: () => {
-     *             return new Promise(resolve => {
+     *             return new Promise((resolve) => {
      *                 resolve({num: 1});
      *             });
      *         },
@@ -978,7 +1066,7 @@ let ext = {
      *         },
      *     }],
      * }).act();
-     * @returns {BuildFlowExtendedJsDialog}
+     * @return {Dialogsx.BuildFlow.Extension}
      */
     buildFlow(config) {
         let _dialogsx = this;
@@ -990,15 +1078,6 @@ let ext = {
             progress: {max: 100, showMinMax: !!config.show_min_max},
         }));
 
-        /**
-         * @typedef {{
-         *     act:function():BuildFlowExtendedJsDialog,
-         *     setStepDesc:function(step_num:number,desc:string,is_append:boolean=false):BuildFlowExtendedJsDialog,
-         *     setProgressData:function({processed:number,total:number}):BuildFlowExtendedJsDialog,
-         *     setFailureData:function(error:string|Error):BuildFlowExtendedJsDialog,
-         * }} BuildFlowExtended
-         */
-        /** @typedef {JsDialog$ & BuildFlowExtended} BuildFlowExtendedJsDialog */
         let _diag_ext = {
             act() {
                 let _promise = new Promise((resolve) => {
@@ -1014,7 +1093,7 @@ let ext = {
                 config.steps.forEach((step, idx) => {
                     _promise = _promise.then((value) => {
                         if (global._$_dialog_flow_interrupted) {
-                            throw Error(_dialogsx._text.user_interrupted);
+                            throw Error(exp.text.user_interrupted);
                         }
                         let _fin = (result) => {
                             _diag.setProgress(100);
@@ -1035,14 +1114,14 @@ let ext = {
 
                 _promise = _promise.then((res) => {
                     if (global._$_dialog_flow_interrupted) {
-                        throw Error(_dialogsx._text.user_interrupted);
+                        throw Error(exp.text.user_interrupted);
                     }
                     _dialogsx.setProgressColorTheme(_diag, 'finish');
 
                     _setStepsFinished('all');
 
                     _diag.removeAllListeners('positive');
-                    _diag.setActionButton('positive', _dialogsx._text._btn.F);
+                    _diag.setActionButton('positive', exp.text.btn.F);
                     _diag.on('positive', d => d.dismiss());
 
                     let _title = config.success_title;
@@ -1059,21 +1138,17 @@ let ext = {
                 });
 
                 _promise.catch((err) => {
-                    _dialogsx.setProgressColorTheme(_diag, 'error');
-
-                    _diag.removeAllListeners('positive');
-
-                    let _btn_el = _dialogsx._text._btn[config.on_interrupt_btn_text || 'B'];
-                    _diag.setActionButton('positive', _btn_el);
-
-                    _diag.on('positive', d => d.dismiss());
-
-                    _dialogsx.alertContent(_diag, err, 'append');
-
                     delete global._$_dialog_flow_interrupted;
 
                     if (typeof config.onFailure === 'function') {
-                        config.onFailure(err, _diag);
+                        config.onFailure({
+                            message: err,
+                            btn_text: exp.text.btn[config.on_interrupt_btn_text || 'B'],
+                            onPositive() {
+                                exp.clearPool();
+                                exit();
+                            },
+                        }, _diag);
                     }
                 });
 
@@ -1105,11 +1180,11 @@ let ext = {
                 }
                 return _diag_mixed;
             },
-            setFailureData(error) {
-                _diag.setActionButton('positive', _dialogsx._text._btn.B);
+            setFailureData(data) {
+                _diag.setActionButton('positive', data.btn_text || exp.text.btn.B);
                 _diag.removeAllListeners('positive');
-                _diag.on('positive', d => d.dismiss());
-                _dialogsx.alertContent(_diag, error, 'append');
+                _diag.on('positive', data.onPositive || (d => d.dismiss()));
+                exp.alertContent(_diag, data.message, 'append');
                 return _diag_mixed;
             },
         };
@@ -1144,15 +1219,15 @@ let ext = {
      * @param {string} [config.title]
      * @param {string} [config.content]
      * @param {string} [config.desc] - alias for config.content
-     * @param {DialogsxButtonText} [config.on_interrupt_btn_text='B']
+     * @param {Dialogsx.Button.Text} [config.on_interrupt_btn_text='B']
      * @param {boolean} [config.show_min_max]
      * @param {*} [config.initial_value]
      * @param {string} [config.success_title]
      * @param {string} [config.success_content]
-     * @param {function(value:*,d:BuildProgressExtendedJsDialog):*} [config.onStart]
-     * @param {function(value:*,d:BuildProgressExtendedJsDialog):*} config.action
-     * @param {function(value:*,d:BuildProgressExtendedJsDialog):*} [config.onSuccess]
-     * @param {function(err:*,d:BuildProgressExtendedJsDialog):*} [config.onFailure]
+     * @param {function(value:*,d:Dialogsx.BuildProgress.Extension):*} [config.onStart]
+     * @param {function(value:*,d:Dialogsx.BuildProgress.Extension):*} config.action
+     * @param {function(value:*,d:Dialogsx.BuildProgress.Extension):*} [config.onSuccess]
+     * @param {function(err:*,d:Dialogsx.BuildProgress.Extension):*} [config.onFailure]
      * @example
      * dialogsx.buildProgress({
      *     title: '正在部署项目最新版本',
@@ -1166,23 +1241,13 @@ let ext = {
      *         }
      *     },
      * }).act();
-     * @returns {BuildProgressExtendedJsDialog}
+     * @return {Dialogsx.BuildProgress.Extension}
      */
     buildProgress(config) {
-        let _dialogsx = this;
-        let _diag = Object.create(_dialogsx.builds([
+        let _diag = Object.create(exp.builds([
             config.title || '', config.content || config.desc || '', 0, 0, 'I', 1,
         ], {progress: {max: 100, showMinMax: !!config.show_min_max}}));
 
-        /**
-         * @typedef {{
-         *     act:function():BuildProgressExtendedJsDialog,
-         *     setStepDesc:function(desc:string,is_append:boolean=false):BuildProgressExtendedJsDialog,
-         *     setProgressData:function({processed:number,total:number}):BuildProgressExtendedJsDialog,
-         *     setFailureData:function(error:string|Error):BuildProgressExtendedJsDialog,
-         * }} BuildProgressExtended
-         */
-        /** @typedef {JsDialog$ & BuildProgressExtended} BuildProgressExtendedJsDialog */
         let _diag_ext = {
             act() {
                 Promise.resolve(config.initial_value)
@@ -1197,26 +1262,26 @@ let ext = {
                             global._$_dialog_flow_interrupted = true;
                         });
                         if (global._$_dialog_flow_interrupted) {
-                            throw Error(_dialogsx._text.user_interrupted);
+                            throw Error(exp.text.user_interrupted);
                         }
                         return config.action(value, _diag);
                     })
                     .then((res) => {
                         if (global._$_dialog_flow_interrupted) {
-                            throw Error(_dialogsx._text.user_interrupted);
+                            throw Error(exp.text.user_interrupted);
                         }
-                        _dialogsx.setProgressColorTheme(_diag, 'finish');
+                        exp.setProgressColorTheme(_diag, 'finish');
 
                         _diag.setProgress(100);
                         _diag.removeAllListeners('positive');
-                        _diag.setActionButton('positive', _dialogsx._text._btn.F);
+                        _diag.setActionButton('positive', exp.text.btn.F);
                         _diag.on('positive', d => d.dismiss());
 
                         let _title = config.success_title;
-                        _title && _dialogsx.setTitleText(_diag, _title);
+                        _title && exp.setTitleText(_diag, _title);
 
                         let _cont = config.success_content;
-                        _cont && _dialogsx.appendContentText(_diag, '\n\n' + _cont);
+                        _cont && exp.appendContentText(_diag, '\n\n' + _cont);
 
                         delete global._$_dialog_flow_interrupted;
 
@@ -1225,15 +1290,15 @@ let ext = {
                         }
                     })
                     .catch((err) => {
-                        _dialogsx.setProgressColorTheme(_diag, 'error');
+                        exp.setProgressColorTheme(_diag, 'error');
                         _diag.removeAllListeners('positive');
 
-                        let _btn_el = _dialogsx._text._btn[config.on_interrupt_btn_text || 'B'];
+                        let _btn_el = exp.text.btn[config.on_interrupt_btn_text || 'B'];
                         _diag.setActionButton('positive', _btn_el);
 
                         _diag.on('positive', d => d.dismiss());
 
-                        _dialogsx.alertContent(_diag, err, 'append');
+                        exp.alertContent(_diag, err, 'append');
 
                         delete global._$_dialog_flow_interrupted;
 
@@ -1260,12 +1325,6 @@ let ext = {
                 _diag.setProgress(data.processed / data.total * 100);
                 return _diag_mixed;
             },
-            setFailureData(error) {
-                _diag.setActionButton('positive', _dialogsx._text._btn.B);
-                _diag.on('positive', d => d.dismiss());
-                _dialogsx.alertContent(_diag, error, 'append');
-                return _diag_mixed;
-            },
         };
 
         let _diag_mixed = Object.assign(_diag, _diag_ext);
@@ -1285,22 +1344,22 @@ let ext = {
     },
     /**
      * @param {JsDialog$|MaterialDialog$} d
-     * @param {ColorParam|DialogsxColorProgress} color
+     * @param {Dialogsx.Progress.Color} color
      */
     setProgressTintList(d, color) {
-        let _c_int = colorsx.toInt(this._colors.wrap(color, 'progress'));
-        let _csl = android.content.res.ColorStateList.valueOf(_c_int);
+        let _c_int = colorsx.toInt(this.colors.wrap(color, 'progress'));
+        let _csl = ColorStateList.valueOf(_c_int);
         d.getProgressBar().setProgressTintList(_csl);
     },
     /**
      * @param {JsDialog$|MaterialDialog$} d
-     * @param {ColorParam|ColorParam[]|DialogsxColorProgress} colors
+     * @param {Color$[]|Dialogsx.Progress.Color} colors
      */
     setProgressTintLists(d, colors) {
         let _colors = colors;
         if (!Array.isArray(_colors)) {
             if (typeof _colors === 'string') {
-                _colors = this._colors.progress[colors] || [_colors];
+                _colors = this.colors.progress[colors] || [_colors];
             } else if (typeof _colors === 'number') {
                 _colors = [_colors];
             } else {
@@ -1313,13 +1372,13 @@ let ext = {
     },
     /**
      * @param {JsDialog$|MaterialDialog$} d
-     * @param {ColorParam|ColorParam[]|DialogsxColorProgress} colors
+     * @param {Color$[]|Dialogsx.Progress.Color} colors
      */
     setProgressColorTheme(d, colors) {
         let _colors = colors;
         if (!Array.isArray(_colors)) {
             if (typeof _colors === 'string') {
-                _colors = this._colors.progress[colors] || [_colors];
+                _colors = this.colors.progress[colors] || [_colors];
             } else if (typeof _colors === 'number') {
                 _colors = [_colors];
             } else {
@@ -1333,11 +1392,11 @@ let ext = {
     },
     /**
      * @param {JsDialog$|MaterialDialog$} d
-     * @param {ColorParam} color
+     * @param {Color$} color
      */
     setProgressBackgroundTintList(d, color) {
         let _c_int = colorsx.toInt(color);
-        let _csl = android.content.res.ColorStateList.valueOf(_c_int);
+        let _csl = ColorStateList.valueOf(_c_int);
         d.getProgressBar().setProgressBackgroundTintList(_csl);
     },
     /**
@@ -1356,7 +1415,72 @@ let ext = {
     clearProgressNumberFormat(d) {
         ui.run(() => d.setProgressNumberFormat(''));
     },
+    /**
+     * @param {JsDialog$|MaterialDialog$} d
+     * @param {Dialogs.ActionButton} action
+     */
+    performClick(d, action) {
+        let _act = String(action).toLowerCase();
+        let _d_act = this.getDialogAction(_act);
+        if (_d_act !== null) {
+            d.getActionButton(_d_act).performClick();
+        }
+    },
+    //// -=-= PENDING =-=- ////
+    alerts(text, options) {
+        let _opt = options || {};
+        let _text = text || '';
+        // let _dark_mode = _opt.is_dark_mode || false;
+        // let _theme_color = _opt.is_dark_mode || 'green';
+        let _text_color = _opt.text_color || '#E5FFFF';
+        let _text_font_family = _opt.text_font_family || 'sans-serif-condensed';
+        let _text_gravity = _opt.text_gravity || 'center';
+        let _text_line_spacing = _opt.text_line_spacing || '5cx';
+        let _text_size = _opt.text_size || 18;
+        let _button_width = _opt.button_width || 100;
+        let _button_text = _opt.button_text || 'OK';
+        let _button_text_color = _opt.button_text_color || '#E5FFFF';
+        let _button_text_size = _opt.button_text_size || 15;
+        let _button_bg_tint_color = _opt.button_bg_tint_color || '#00251A';
+        let _button_font_family = _opt.button_font_family || 'sans-serif';
+        let _button_layout_gravity = _opt.button_layout_gravity || 'center';
+        let _dialog_bg_color = _opt.dialog_bg_color || colorsx.hrgba('#005B4F91');
+        let _dialog_dim_amount = _opt.dialog_dim_amount || 90;
+
+        let _view = ui.inflate(<vertical>
+            <x-text id="text" padding="1 5" margin="2 12"/>
+            <x-button id="btn" marginBottom="4"/>
+        </vertical>);
+
+        _view['text'].attr('text', _text);
+        _view['text'].attr('text_color', _text_color);
+        _view['text'].attr('text_size', _text_size);
+        _view['text'].attr('font_family', _text_font_family);
+        _view['text'].attr('gravity', _text_gravity);
+        _view['text'].attr('line_spacing', _text_line_spacing);
+
+        _view['btn'].attr('width', _button_width);
+        _view['btn'].attr('text', _button_text);
+        _view['btn'].attr('text_size', _button_text_size);
+        _view['btn'].attr('text_color', _button_text_color);
+        _view['btn'].attr('layout_gravity', _button_layout_gravity);
+        _view['btn'].attr('background_tint', _button_bg_tint_color);
+        _view['btn'].attr('font_family', _button_font_family);
+
+        _view['btn'].on('click', () => _diag.dismiss());
+
+        let _diag = this.builds({
+            customView: _view,
+            canceledOnTouchOutside: false,
+            background: _dialog_bg_color,
+            animation: 'input_method',
+            dim_amount: _dialog_dim_amount,
+            keycode_back: d => d.dismiss(),
+        }).show();
+    },
 };
 
-module.exports = ext;
-module.exports.load = () => global.dialogsx = ext;
+/**
+ * @type {Mod.dialogsx}
+ */
+module.exports = {dialogsx: exp};

@@ -1,19 +1,23 @@
+require('../modules/mod-global');
+let {uix} = require('../modules/ext-ui');
+let {timersx} = require('../modules/ext-timers');
+
 let _ts = _getTsFromArgv() || _getTsFromAutoTask() || _getTsFromDiag();
 
 // noinspection HtmlUnknownTarget,HtmlRequiredAltAttribute
 let _view = ui.inflate(
     <vertical gravity="center">
-        <img id="img" src="@drawable/ic_alarm_on_black_48dp"
-             height="70" margin="0 26 0 18" gravity="center"
-             bg="?selectableItemBackgroundBorderless"/>
+        <x-img id="img" src="@drawable/ic_alarm_on_black_48dp"
+               height="70" margin="0 26 0 18"
+               bg="?selectableItemBackgroundBorderless"/>
         <vertical>
-            <text text="Next auto task" gravity="center" color="#ddf3e5f5" padding="5 0 5 20" size="19"/>
-            <text id="aim" gravity="center" color="#ddf3e5f5" padding="5 0 5 20" size="18"/>
-            <text id="ctd" gravity="center" color="#ddf3e5f5" padding="5 0 5 24" size="18"/>
+            <x-text text="Next auto task" gravity="center" color="#DDF3E5F5" padding="5 0 5 20" size="19"/>
+            <x-text id="aim" gravity="center" color="#DDF3E5F5" padding="5 0 5 20" size="18"/>
+            <x-text id="ctd" gravity="center" color="#DDF3E5F5" padding="5 0 5 24" size="18"/>
         </vertical>
         <horizontal w="auto">
-            <button id="btn" type="button" text="CLOSE" layout_weight="1" backgroundTint="#dd1b5e20"
-                    textColor="#dde8f5e9" marginBottom="9"/>
+            <x-button id="btn" type="button" text="CLOSE" layout_weight="1" backgroundTint="#DD1B5E20"
+                      textColor="#DDE8F5E9" marginBottom="9"/>
         </horizontal>
     </vertical>);
 let _diag = dialogs.build({
@@ -34,7 +38,7 @@ ui.run(() => {
     });
 
     _view['btn'].on('click', _exitNow);
-    _setTint(_view['img'], '#ba68c8');
+    uix.setImageTint(_view['img'], '#BA68C8');
 
     let _win = _diag.getWindow();
     _win.setBackgroundDrawableResource(android.R.color.transparent);
@@ -52,35 +56,22 @@ function _getTsFromArgv() {
 }
 
 function _getTsFromAutoTask() {
-    let _root_path = files.path('../');
-    // let _root_path = files.path('./Ant-Forest-003/');
-    let _path = _root_path + 'modules/ext-timers.js';
-    if (files.exists(_path)) {
-        return require(_path).queryTimedTasks({
-            path: _root_path + 'ant-forest-launcher.js',
-        }).map(task => task.getNextTime()).sort()[0];
-    }
+    return timersx.queryTimedTasks({
+        path: files.path('../ant-forest-launcher.js'),
+    }).map(task => task.getNextTime()).sort()[0];
 }
 
 function _getTsFromDiag() {
     while (1) {
-        _ts = Number(dialogs.prompt('未检测到"蚂蚁森林"定时任务\n请输入用于测试的延迟分钟'));
+        _ts = Number(dialogs.prompt('未检测到"蚂蚁森林"定时任务\n输入用于测试的延迟分钟'));
         if (!isNaN(_ts) && _ts > 0) {
             return _ts * 60e3 + Date.now();
         } else if (!_ts) {
             toast('已退出');
             exit();
         }
-        alert('请输入合法的数字');
+        alert('需输入合法的数字');
     }
-}
-
-function _setTint(view, color) {
-    if (typeof color === 'number') {
-        color = colors.toString(color);
-    }
-    view.setColorFilter(com.stardust.autojs.core.ui.inflater
-        .util.Colors.parse(view, color));
 }
 
 function _setCtdText(t) {
@@ -95,31 +86,6 @@ function _setCtdText(t) {
     let _aim_str = '';
     let _ctd_str = '';
 
-    let _getPadStr = function (target_len, pad_str) {
-        let _tar_len = Number(target_len);
-        let _this_len = this.length;
-        if (_tar_len <= _this_len) {
-            return '';
-        }
-        let _pad_str = pad_str === undefined ? ' ' : String(pad_str);
-        let _gap = _tar_len - _this_len;
-        let _times = Math.ceil(_gap / _pad_str.length);
-        return _pad_str.repeat(_times).slice(0, _gap);
-    };
-
-    if (!String.prototype.padStart) {
-        String.prototype.padStart = function (target_len, pad_str) {
-            return _getPadStr.apply(this, arguments) + this.valueOf();
-        };
-    }
-
-    if (!Number.prototype.padStart) {
-        Number.prototype.padStart = function (target_len, pad_str) {
-            let _this = this.toString();
-            return _this.padStart.call(_this, target_len, pad_str || 0);
-        };
-    }
-
     let _tsToTime = (ts, is_gap) => {
         if (is_gap) {
             ts += new Date(new Date().toLocaleDateString()).getTime();
@@ -130,7 +96,7 @@ function _setCtdText(t) {
             _d.getSeconds().padStart(2, 0);
     };
 
-    let _aim = (() => {
+    let _aim = (function $iiFe() {
         if (typeof t === 'number') {
             _aim_str = _tsToTime(t);
             return new Date(t);
@@ -184,15 +150,23 @@ function _setCtdText(t) {
     };
 
     _setCtdText();
-    setInterval(_setCtdText, 1e3);
+    global._$_itv_set_view = setInterval(_setCtdText, 1e3);
 
-    setTimeout(function () {
+    global._$_tt_timeout = setTimeout(() => {
         _exitNow('自动关闭倒计时悬浮窗');
     }, Math.max(3e3, _aim_ts - Date.now()));
 }
 
 function _exitNow(msg) {
     _diag.dismiss();
-    typeof msg === 'string' && toast(msg);
-    exit();
+    if (typeof msg === 'string') {
+        toast(msg);
+    }
+    if (typeof global._$_itv_set_view === 'number') {
+        clearInterval(global._$_itv_set_view);
+    }
+    if (typeof global._$_tt_timeout === 'number') {
+        clearTimeout(global._$_tt_timeout);
+    }
+    ui.post(() => exit());
 }

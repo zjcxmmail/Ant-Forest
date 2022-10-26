@@ -2,7 +2,7 @@ module.exports = {
     af: {
         // project description
         project_desc: '蚂蚁森林',
-        // i know the trick about the reason you wanna turn this switch off
+        // i know the trick about the reason you want to turn this switch off
         self_collect_switch: true,
         // sometimes alipay will not be launched without Auto.js running in the foreground
         app_launch_springboard: 'OFF',
@@ -18,7 +18,7 @@ module.exports = {
         main_account_info: {},
         // 1 <= x <= 200; press time for press(); small value like 1 may be not safe in some situations
         forest_balls_click_duration: 54,
-        // 10 <= x <= 500; as the saying goes, 'Haste makes waste'
+        // 10 <= x <= 2000; as the saying goes, 'Haste makes waste'
         forest_balls_click_interval: 108,
         // set true value if you need continuously check your own energy balls
         homepage_monitor_switch: true,
@@ -33,11 +33,11 @@ module.exports = {
         // just in case of infinite loop check
         homepage_wball_check_limit: 120,
         // max hue value in HSB mode without blue component for water wall identification
-        homepage_wball_max_hue_no_blue: 47,
+        homepageWaterBallMaxHueNoBlue: 47,
         // seriously? i cannot believe it if you turn this switch off
         friend_collect_switch: true,
         // color for collect icon with a hand pattern
-        friend_collect_icon_color: '#1da06d',
+        friend_collect_icon_color: '#1DA06D',
         // 0 <= x <= 66; the smaller, the stricter; max limit tested on Sony G8441
         friend_collect_icon_threshold: 10,
         // set truthy value to get targets by stroll button rather than traverse rank list
@@ -45,33 +45,33 @@ module.exports = {
         // 1 <= x <= 5; to avoid infinite loop targets detection
         max_continuous_not_targeted_stroll_cycle: 3,
         // 1 <= x <= 8; size limitation for forest balls samples pool
-        forest_balls_pool_limit: 2,
-        // 50 <= x <= 500; interval between two samples when saving into forest balls samples pool
-        forest_balls_pool_itv: 240,
+        forestImagePoolLimit: 3,
+        // 10 <= x <= 500; interval between two samples when saving into forest balls samples pool
+        forestImagePoolItv: 60,
         // rectangle region for energy balls recognition in forest page
-        eballs_recognition_region: [0.1 /* cX */, 0.15 /* cYx */, 0.9 /* cX */, 0.45 /* cYx */],
+        energyBallsRecognitionRegion: [0.1 /* cX */, 0.15 /* cYx */, 0.9 /* cX */, 0.45 /* cYx */],
         // strategies for cv::houghCircles image source (8bit, single-channel and grayscale)
-        hough_src_img_strategy: {
-            gray: true, // images.grayscale(image)
-            adapt_thrd: true, // images.adaptiveThreshold(image, 255, 'GAUSSIAN_C', 'BINARY_INV', 9, 6)
-            med_blur: true, // images.medianBlur(image, 9)
+        houghSrcImageStrategy: {
+            grayscale: true, // images.grayscale(image)
+            adaptiveThreshold: true, // images.adaptiveThreshold(image, 255, 'GAUSSIAN_C', 'BINARY_INV', 9, 6)
+            medianBlur: true, // images.medianBlur(image, 9)
             blur: true, // images.blur(image, 9, null, 'REPLICATE')
-            blt_fltr: false, // imagesx.bilateralFilter(image, 9, 20, 20, 'REPLICATE')
+            bilateralFilter: false, // images.bilateralFilter(image, 9, 20, 20, 'REPLICATE')
         },
         // strategies for handling cv::houghCircles results
-        hough_results_strategy: {
-            anti_ovl: true, // anti overlap: remove redundant balls overlapped
+        houghResultsStrategy: {
+            antiOverlap: true, // anti overlap: remove redundant balls overlapped
             symmetrical: true, // symmetrical: calculated outer absent ball of one side
-            linear_itp: true, // linear interpolate: calculated inner absent ball(s)
+            linearInterpolate: true, // linear interpolate: calculated inner absent ball(s)
         },
         // 0 <= x <= 40; the smaller, the stricter;
-        ripe_ball_detect_threshold: 13,
-        // color for ripe balls in forest page since Oct 16, 2020 around (old value: '#ceff5f')
-        ripe_ball_detect_color_val: '#deff00',
+        ripeBallDetectThreshold: 13,
+        // color for ripe balls in forest page since Oct 16, 2020 around (old value: '#CEFF5F')
+        ripeBallDetectColorVal: '#DEFF00',
         // 0.06 <= x <= 0.15; minimum distance between two energy balls
-        min_balls_distance: 0.09,
+        minBallsDistance: 0.09,
         // protect cover identifying color from a certain point in countdown area
-        protect_cover_detect_color_val: '#bef658', // TODO...
+        protect_cover_detect_color_val: '#BEF658', // TODO...
         // do not set this value too big in case that green balls will be recognized as protect cover
         protect_cover_detect_threshold: 5, // TODO...
         // set true if you wish your dream's coming true when you are making a sweet dream or snoring
@@ -80,8 +80,6 @@ module.exports = {
         message_showing_switch: true,
         // if false was set, message in console will not be printed, but toast or floaty not included
         console_log_switch: true,
-        // whether to show message details of each friend in console
-        console_log_details: true,
         // show debug logs in console to debug this script or to give developer feedback
         debug_info_switch: false,
         // information will show in floaty way with true or toast way with false
@@ -100,7 +98,7 @@ module.exports = {
         rank_list_review_samples_clicked_switch: true,
         // rank list review condition: samples difference between last two samples nickname data
         rank_list_review_difference_switch: true,
-        // 'swipe' may be not helpful sometimes (eg. some Android 11 devices)
+        // 'swipe' may be not helpful sometimes (e.g. some Android 11 devices)
         rank_list_scan_strategy: 'scroll',
         // [0.4, 0.9] for percentage, or integer for pixel distance (like 1260)
         rank_list_swipe_distance: 0.75,
@@ -165,7 +163,7 @@ module.exports = {
         // confirmation won't prompt with truthy value before quit current running task
         prompt_before_running_quit_confirm: true,
         // default choices for a postponed minute
-        prompt_before_running_postponed_minutes_map: [1, 2, 3, 5, 10, 15, 20, 30],
+        prompt_before_running_postponed_minutes_choices: [1, 2, 3, 5, 10, 15, 20, 30, 60],
         // 0 for ask every time, other number like 1, 2, 5 for specific postponed minute
         prompt_before_running_postponed_minutes: 0,
         // record user selected value of postponed settings dialog in countdown dialog
@@ -180,15 +178,16 @@ module.exports = {
         auto_task_show_on_e_result: true,
         stat_list_show_zero: 1, // hide zero
         stat_list_date_range: 2, // today
-        global_log_switch: false,
-        global_log_cfg_path: './log/',
-        global_log_cfg_file_pattern: '%d{yyyy-MM-dd/}%m%n',
-        global_log_cfg_max_backup_size: 7,
-        global_log_cfg_max_file_size: 320, // KB
+        aj_global_log_switch: true,
+        aj_global_log_cfg_path: './log/',
+        aj_global_log_cfg_file_pattern: '%d{yyyy-MM-dd/}%m%n',
+        aj_global_log_cfg_max_backup_size: 7,
+        aj_global_log_cfg_max_file_size: 320, // KB
         e_dblclick_switch: false,
         e_rain_switch: false,
         stroll_btn_match_threshold: 10,
-        stroll_btn_locate_main_color: '#ff7e00',
+        stroll_btn_locate_main_color: '#FF7E00',
+        root_access_functions: {force_stop: false, screen_off: true},
     },
     unlock: {
         // when we first met, i do not know your name, your age, or, your sexual orientation, wow...
@@ -206,7 +205,7 @@ module.exports = {
         // also, 'delay' or 'disable' dismiss layer check is optional
         unlock_dismiss_layer_strategy: 'preferred',
         // 0.5 <= x <= 0.95; great value (like 0.95) may cause unexpected object activation
-        unlock_dismiss_layer_bottom: 0.8,
+        unlock_dismiss_layer_bottom: 0.7,
         // 0.05 <= x <= 0.3; this value may be not that important
         unlock_dismiss_layer_top: 0.2,
         // time for swiping up to dismiss the lock screen layer; will be auto modified initially
@@ -214,11 +213,5 @@ module.exports = {
     },
     settings: {
         item_area_width: 0.78,
-        local_backup_path: (() => {
-            let _sep = java.io.File.separator;
-            let _path = files.getSdcardPath() + '/.local/bak/ant-forest';
-            files.exists(_path) || files.createWithDirs(_path + _sep);
-            return new java.io.File(_path).getAbsolutePath();
-        })(),
     },
 };

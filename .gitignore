@@ -8,5 +8,4 @@ test*.js
 /.git
 /.github
 /.idea
-/tools/accessibility-settings.js
-/declarations
+/assets/declarations/*

@@ -1,161 +1,212 @@
-// better compatibility for both free and some Pro versions of Auto.js
+let {threadsx} = require('./ext-threads');
 
-global.timersx = typeof global.timersx === 'object' ? global.timersx : {};
-
-require('./mod-monster-func').load('waitForAction');
-
-let is_pro = context.packageName.match(/[Pp]ro/);
-let timing = is_pro ? com.stardust.autojs.core.timing : org.autojs.autojs.timing;
-let TimedTask = is_pro ? timing.TimedTask.Companion : timing.TimedTask;
+let is_pro = context.getPackageName().match(/Pro\b/i);
+let timing = is_pro ? com.stardust.autojs.core['timing'] : org.autojs.autojs.timing;
+let TimedTask = is_pro ? timing.TimedTask['Companion'] : timing.TimedTask;
 let TimedTaskManager = timing.TimedTaskManager;
-let TimedTaskMgr = is_pro ? TimedTaskManager.Companion.getInstance() : TimedTaskManager.getInstance();
-let bridges = require.call(global, '__bridges__');
+let TimedTaskMgr = is_pro ? TimedTaskManager['Companion'].getInstance() : TimedTaskManager.getInstance();
+let bridges = global.require('__bridges__');
 let days_ident = [
     'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
     'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun',
     '一', '二', '三', '四', '五', '六', '日',
     1, 2, 3, 4, 5, 6, 0,
     1, 2, 3, 4, 5, 6, 7,
-].map(value => value.toString());
+].map(x => typeof x === 'string' ? x : x.toString());
 
-let ext = {
+let exp = {
     /**
-     * @param {{
-     *     path: string, time: string|Date|number,
-     *     delay?: number, interval?: number, loopTimes?: number,
-     * }} options
-     * @param {boolean|'wait'} [wait_fg=false]
+     * @param {TimedTask$|IntentTask$} task
+     * @param {Timersx.TimedTask.Extension} [options]
+     * @return {TimedTask$|null|*}
+     */
+    _taskFulfilled(task, options) {
+        if (!task) {
+            return null;
+        }
+        let _o = options || {};
+        let _cond = typeof _o.condition === 'function' ? _o.condition : () => task.id > 0;
+        let _cbk = typeof _o.callback === 'function' ? _o.callback : null;
+        let _timeout = 3e3;
+        let _itv = 120;
+        let _run = () => {
+            while (_timeout > 0) {
+                if (_cond()) {
+                    return _cbk ? _cbk(task) : task;
+                }
+                sleep(_itv);
+                _timeout -= _itv;
+            }
+            return null;
+        };
+        if (!_o.is_async) {
+            return _run();
+        }
+        threadsx.start(_run);
+    },
+    /**
+     * @param {TimedTask$|IntentTask$|null} task
+     * @return {TimedTask$|IntentTask$|null}
+     */
+    addTask(task) {
+        if (task) {
+            if (is_pro) {
+                TimedTaskMgr['addTaskSync'](task);
+            } else {
+                TimedTaskMgr.addTask(task);
+            }
+        }
+        return task || null;
+    },
+    /**
+     * @param {Timersx.TimedTask.Daily} options
      * @example
      * timersx.addDailyTask({
      *     time: Date.now() + 3.6e6,
      *     path: files.path('./test.js'),
      * });
-     * @returns {org.autojs.autojs.timing.TimedTask|null}
+     * @return {?TimedTask$}
      */
-    addDailyTask(options, wait_fg) {
+    addDailyTask(options) {
         let _opt = options || {};
-        let _date_time = parseDateTime('LocalTime', _opt.time);
+        let _date_time = parseDateTime('LocalTime', _opt.time || Date.now());
         let _path = files.path(_opt.path);
         let _cfg = parseConfig(_opt);
-        let _task = addTask(TimedTask.dailyTask(_date_time, _path, _cfg));
-        return _task && (!wait_fg || waitForAction(() => _task.id !== 0, 3e3, 120)) ? _task : null;
+        let _task = this.addTask(TimedTask.dailyTask(_date_time, _path, _cfg));
+        return this._taskFulfilled(_task, _opt);
     },
     /**
-     * @param {{
-     *     path: string, time: string|Date|number,
-     *     daysOfWeek: (string|number)[],
-     *     delay?: number, interval?: number, loopTimes?: number,
-     * }} options
-     * @param {boolean|'wait'} [wait_fg=false]
+     * @param {Timersx.TimedTask.Weekly} options
      * @example
      * timersx.addWeeklyTask({
      *     time: Date.now() + 3.6e6,
      *     path: files.path('./test.js'),
      *     daysOfWeek: [1, 3, 6, 7],
      * });
-     * @returns {org.autojs.autojs.timing.TimedTask|null}
+     * @return {?TimedTask$}
      */
-    addWeeklyTask(options, wait_fg) {
+    addWeeklyTask(options) {
         let _opt = options || {};
         let _time_flag = 0;
         for (let i = 0; i < _opt.daysOfWeek.length; i++) {
             let day_str = _opt.daysOfWeek[i].toString();
             let day_idx = days_ident.indexOf(day_str.toLowerCase()) % 7;
-            if (!~day_idx) {
+            if (day_idx < 0) {
                 throw Error('unknown day: ' + day_str);
             }
             _time_flag |= TimedTask.getDayOfWeekTimeFlag(day_idx + 1);
         }
-        let _date_time = parseDateTime('LocalTime', _opt.time);
+        let _date_time = parseDateTime('LocalTime', _opt.time || Date.now());
         let _flag_num = Number(new java.lang.Long(_time_flag));
         let _path = files.path(_opt.path);
         let _cfg = parseConfig(_opt);
-        let _task = addTask(TimedTask.weeklyTask(_date_time, _flag_num, _path, _cfg));
-        return _task && (!wait_fg || waitForAction(() => _task.id !== 0, 3e3, 120)) ? _task : null;
+        let _task = this.addTask(TimedTask.weeklyTask(_date_time, _flag_num, _path, _cfg));
+        return this._taskFulfilled(_task, _opt);
     },
     /**
-     * @param {{
-     *     path: string, date: string|Date|number,
-     *     delay?: number, interval?: number, loopTimes?: number,
-     * }} options
-     * @param {boolean|'wait'} [wait_fg=false]
+     * @param {Timersx.TimedTask.Disposable} options
      * @example
      * timersx.addDisposableTask({
      *     path: engines.myEngine().source,
      *     date: Date.now() + 3.6e6,
      * });
-     * @returns {org.autojs.autojs.timing.TimedTask|null}
+     * @return {?TimedTask$}
      */
-    addDisposableTask(options, wait_fg) {
+    addDisposableTask(options) {
         let _opt = options || {};
-        let _date_time = parseDateTime('LocalDateTime', _opt.date);
+        let _date_time = parseDateTime('LocalDateTime', _opt.date || Date.now());
         let _path = files.path(_opt.path);
         let _cfg = parseConfig(_opt);
-        let _task = addTask(TimedTask.disposableTask(_date_time, _path, _cfg)) || null;
-        return _task && (!wait_fg || waitForAction(() => _task.id !== 0, 3e3, 120)) ? _task : null;
+        let _task = this.addTask(TimedTask.disposableTask(_date_time, _path, _cfg)) || null;
+        return this._taskFulfilled(_task, _opt);
     },
     /**
-     * @param {{path:string,action?:string}} options
-     * @param {boolean|'wait'} [wait_fg=false]
+     * @param {{path:string,action?:string}&Timersx.TimedTask.Extension} options
      * @example
      * timersx.addIntentTask({
      *     path: files.path('./test.js'),
      *     action: 'android.intent.action.BATTERY_CHANGED',
      * });
-     * @returns {org.autojs.autojs.timing.TimedTask|null}
+     * @return {?IntentTask$}
      */
-    addIntentTask(options, wait_fg) {
+    addIntentTask(options) {
         let _opt = options || {};
-        let _task = addTask((() => {
+        let _task = this.addTask((function $iiFe() {
             let _i_task = new timing.IntentTask();
             _i_task.setScriptPath(files.path(_opt.path));
             _opt.action && _i_task.setAction(_opt.action);
             return _i_task;
         })()) || null;
-        return _task && (!wait_fg || waitForAction(() => _task.id !== 0, 3e3, 120)) ? _task : null;
+        return this._taskFulfilled(_task, _opt);
     },
     /**
      * @param {number} id
-     * @returns {org.autojs.autojs.timing.TimedTask}
+     * @return {TimedTask$}
      */
     getTimedTask(id) {
         return TimedTaskMgr.getTimedTask(id);
     },
     /**
      * @param {number} id
-     * @returns {org.autojs.autojs.timing.IntentTask}
+     * @return {IntentTask$}
      */
     getIntentTask(id) {
         return TimedTaskMgr.getIntentTask(id);
     },
     /**
-     * @param {number} id
-     * @param {boolean|'wait'} [wait_fg=false]
-     * @returns {org.autojs.autojs.timing.TimedTask|null}
+     * @param {TimedTask$|IntentTask$|null} task
+     * @return {TimedTask$|IntentTask$}
      */
-    removeIntentTask(id, wait_fg) {
-        let _task = removeTask(this.getIntentTask(id));
-        return _task && (!wait_fg || waitForAction(() => !this.getTimedTask(_task.id), 3e3, 120)) ? _task : null;
+    removeTask(task) {
+        if (!task) {
+            return null;
+        }
+        if (is_pro) {
+            TimedTaskMgr['removeTaskSync'](task);
+        } else {
+            TimedTaskMgr.removeTask(task);
+        }
+        return task;
     },
     /**
      * @param {number} id
-     * @param {boolean|'wait'} [wait_fg=false]
-     * @returns {org.autojs.autojs.timing.TimedTask|null}
+     * @param {Timersx.TimedTask.Extension} [options]
+     * @return {?TimedTask$}
      */
-    removeTimedTask(id, wait_fg) {
-        let _task = removeTask(this.getTimedTask(id));
-        return _task && (!wait_fg || waitForAction(() => !this.getTimedTask(_task.id), 3e3, 120)) ? _task : null;
+    removeIntentTask(id, options) {
+        let _opt = options || {};
+        let _task = this.removeTask(this.getIntentTask(id));
+        return this._taskFulfilled(_task, Object.assign(_opt, {
+            condition: () => !this.getIntentTask(id),
+        }));
     },
     /**
-     * @param {org.autojs.autojs.timing.TimedTask|*} [task]
-     * @returns {*|org.autojs.autojs.timing.TimedTask|null}
+     * @param {number} id
+     * @param {Timersx.TimedTask.Extension} [options]
+     * @return {?TimedTask$}
      */
-    updateTimedTask(task) {
-        return task && updateTask(task) || null;
+    removeTimedTask(id, options) {
+        let _opt = options || {};
+        let _task = this.removeTask(this.getTimedTask(id));
+        return this._taskFulfilled(_task, Object.assign(_opt, {
+            condition: () => !this.getTimedTask(id),
+        }));
+    },
+    /**
+     * @param {TimedTask$|null} task
+     * @return {TimedTask$|null}
+     */
+    updateTask(task) {
+        if (!task) {
+            return null;
+        }
+        task.setScheduled(false);
+        TimedTaskMgr.updateTask(task);
+        return task;
     },
     /**
      * @param {{path?:string}} [options]
-     * @returns {org.autojs.autojs.timing.TimedTask[]}
+     * @return {TimedTask$[]}
      */
     queryTimedTasks(options) {
         let _opt = options || {};
@@ -176,7 +227,7 @@ let ext = {
     },
     /**
      * @param {{path?:string,action?:string}} [options]
-     * @returns {org.autojs.autojs.timing.IntentTask[]}
+     * @return {IntentTask$[]}
      */
     queryIntentTasks(options) {
         let _opt = options || {};
@@ -201,10 +252,200 @@ let ext = {
             !(_path && task.getScriptPath() !== _path || _act && task.getAction() !== _act)
         )) : _list;
     },
+    /**
+     * Conversion between time flag and numbers
+     * @param src {number|number[]} -- number(s) from 0 to 127
+     * @example
+     * // [0,1,2,4,5] -- Sun, Mon, Tue, Thu, Fri
+     * timersx.timeFlagConverter(55);
+     * // 23 -- time flag; Sun, Mon, Tue, Thu
+     * timersx.timeFlagConverter([0, 1, 2, 4]);
+     * // [0,1,2,3,4,5,6] -- every day
+     * timersx.timeFlagConverter(127);
+     * // 127 -- time flag; every day
+     * timersx.timeFlagConverter([0,1,2,3,4,5,6]);
+     * // [] -- disposable
+     * timersx.timeFlagConverter(0);
+     * @return {number|number[]}
+     */
+    timeFlagConverter(src) {
+        if (Array.isArray(src)) {
+            return Array(7).fill(0).reduce((a, b, i) => {
+                return a + (src.includes(i) ? Math.pow(2, i) : 0);
+            }, 0);
+        }
+        let _res = [];
+        let _str = Number(src).toString(2);
+        let _num = _str.length - 1;
+        for (let i of _str) {
+            i > 0 && _res.unshift(_num);
+            _num -= 1;
+        }
+        return _res;
+    },
+    /**
+     * Replacement of setInterval() with functional timeout supported
+     * @param {function} func
+     * @param {number} [interval=200]
+     * @param {number|function():boolean} [timeout=Infinity]
+     * @param {function} [callback]
+     * @example
+     * // print 'hello' every 1 second for 5 (or 4 sometimes) times
+     * timersx.setInterval(() => console.log('hello'), 1e3, 5e3);
+     * @example
+     * timersx.setInterval(() => log('Good luck comes later...'), 100, () => {
+     *     let num = Math.random() * 100 + 1;
+     *     return num > 90 && Math.floor(num);
+     * }, res => log('Your lucky number is ' + res));
+     * @see https://dev.to/akanksha_9560/why-not-to-use-setinterval--2na9
+     */
+    setInterval(func, interval, timeout, callback) {
+        let $ = {
+            init_ts: Date.now(),
+            interval: interval > 0 ? interval : 200,
+            timeout: timeout > 0 ? timeout : Infinity,
+            isTimedOut() {
+                if (typeof this._isTimedOut !== 'function') {
+                    this._isTimedOut = typeof timeout === 'function'
+                        ? timeout.bind(this)
+                        : () => Date.now() - this.init_ts > this.timeout;
+                }
+                this.timeout_result = this._isTimedOut();
+                return this.timeout_result !== false && !isNullish(this.timeout_result);
+            },
+            relayIFN() {
+                if (!this.isTimedOut()) {
+                    this.setTimeout();
+                } else if (typeof callback === 'function') {
+                    callback.call(this, this.timeout_result);
+                }
+            },
+            run() {
+                func();
+                this.relayIFN();
+            },
+            setTimeout() {
+                setTimeout(this.run.bind(this), this.interval);
+            },
+        };
+        $.setTimeout();
+    },
+    $rec() {
+        let _ = {
+            /**
+             * @type {Object.<string,number>}
+             */
+            keys: {},
+            /**
+             * @type {number[]}
+             */
+            anonymity: [],
+            /**
+             * @param {?number} [ts]
+             * @return {number}
+             */
+            ts(ts) {
+                return typeof ts === 'number' ? ts : Date.now();
+            },
+            /**
+             * @param {string} [key]
+             * @return {boolean}
+             */
+            has(key) {
+                return key in this.keys;
+            },
+            /**
+             * @param {string} [key]
+             * @param {?number} [ts]
+             * @return {number}
+             */
+            add(key, ts) {
+                key === undefined
+                    ? this.anonymity.push(this.ts(ts))
+                    : this.keys[key] = this.ts(ts);
+                return this.ts(ts);
+            },
+            /**
+             * @param {string} [key]
+             * @return {number|void}
+             */
+            get(key) {
+                return key === undefined ? this.anonymity.pop() : this.keys[key];
+            },
+            /**
+             * @param {string} [key]
+             * @param {?number} [ts]
+             * @return {number}
+             */
+            save(key, ts) {
+                return this.add(key, ts);
+            },
+            /**
+             * @param {string} [key]
+             * @param {?number} [ts]
+             * @return {number}
+             */
+            load(key, ts) {
+                return this.ts(ts) - this.get(key);
+            },
+            /**
+             * @param {string|function} [key]
+             * @param {?number} [ts]
+             * @return {number}
+             */
+            shortcut(key, ts) {
+                if (typeof key === 'function') {
+                    this.save();
+                    key.call(ts);
+                    return this.load();
+                }
+                return typeof key !== 'undefined'
+                    ? this.has(key) ? this.load(key, ts) : this.save(key, ts)
+                    : this.anonymity.length ? this.load() : this.save();
+            },
+        };
+
+        /**
+         * Record or get the record for a time gap
+         * @param {string|function} [key]
+         * @param {number|ThisType<any>} [ts]
+         * @return {number|void} - timestamp
+         */
+        this.rec = function (key, ts) {
+            return _.shortcut(key, ts);
+        };
+        /**
+         * @param {string} [key]
+         * @param {number} [ts=Date.now()]
+         */
+        this.rec.save = (key, ts) => _.save(key, ts);
+        /**
+         * @param {string} [key]
+         * @param {number} [ts=Date.now()]
+         * @return {number}
+         */
+        this.rec.load = (key, ts) => _.load(key, ts);
+        this.rec.lt = (key, compare) => this.rec.load(key) < compare;
+        this.rec.gt = (key, compare) => this.rec.load(key) > compare;
+        this.rec.clear = () => {
+            _.keys = {};
+            _.anonymity.splice(0);
+        };
+
+        delete this.$rec;
+        return this;
+    },
+    $bind() {
+        this.$rec();
+
+        delete this.$bind;
+        return this;
+    },
 };
 
-module.exports = ext;
-module.exports.load = () => global.timersx = ext;
+exp.$bind();
+
+module.exports = {timersx: exp};
 
 // tool function(s) //
 
@@ -213,7 +454,7 @@ module.exports.load = () => global.timersx = ext;
  * @param {number} [c.delay=0]
  * @param {number} [c.interval=0]
  * @param {number} [c.loopTimes=1]
- * @returns {com.stardust.autojs.execution.ExecutionConfig}
+ * @return {com.stardust.autojs.execution.ExecutionConfig}
  */
 function parseConfig(c) {
     let _ec = new com.stardust.autojs.execution.ExecutionConfig();
@@ -226,7 +467,7 @@ function parseConfig(c) {
 /**
  * @param {'LocalTime'|'LocalDateTime'|string} clazz
  * @param {string|Date|number} date_time
- * @returns {org.joda.time.DateTime|org.joda.time.LocalDateTime|*}
+ * @return {org.joda.time.DateTime|org.joda.time.LocalDateTime|*}
  */
 function parseDateTime(clazz, date_time) {
     let _clz = is_pro ? clazz : org.joda.time[clazz];
@@ -242,41 +483,4 @@ function parseDateTime(clazz, date_time) {
         return is_pro ? TimedTask.parseDateTime.call(TimedTask, _clz, _dt) : new _clz(_dt);
     }
     throw new Error('Cannot parse date time: ' + date_time);
-}
-
-/**
- * @param {org.autojs.autojs.timing.TimedTask|org.autojs.autojs.timing.IntentTask} [task]
- * @returns {org.autojs.autojs.timing.TimedTask|org.autojs.autojs.timing.IntentTask|null}
- */
-function addTask(task) {
-    if (!task) {
-        return null;
-    }
-    TimedTaskMgr[is_pro ? 'addTaskSync' : 'addTask'](task);
-    return task;
-}
-
-/**
- * @param {org.autojs.autojs.timing.TimedTask|org.autojs.autojs.timing.IntentTask} [task]
- * @returns {org.autojs.autojs.timing.TimedTask|org.autojs.autojs.timing.IntentTask|null}
- */
-function removeTask(task) {
-    if (!task) {
-        return null;
-    }
-    TimedTaskMgr[is_pro ? 'removeTaskSync' : 'removeTask'](task);
-    return task;
-}
-
-/**
- * @param {org.autojs.autojs.timing.TimedTask} [task]
- * @returns {org.autojs.autojs.timing.TimedTask|null}
- */
-function updateTask(task) {
-    if (!task) {
-        return null;
-    }
-    task.setScheduled(false);
-    TimedTaskMgr.updateTask(task);
-    return task;
 }

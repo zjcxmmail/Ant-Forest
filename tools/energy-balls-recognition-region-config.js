@@ -1,7 +1,8 @@
-require('../modules/ext-global').load();
-require('../modules/ext-dialogs').load();
-require('../modules/ext-device').load();
-require('../modules/ext-storages').load();
+require('../modules/mod-global');
+require('../modules/ext-ui');
+require('../modules/ext-device');
+let {dialogsx} = require('../modules/ext-dialogs');
+let {storagesx} = require('../modules/ext-storages');
 
 let [_dx, _dy] = [cX(0.35), cY(0.45)];
 let _rect = [cX(0.35), cY(0.45), cX(0.65), cY(0.55)];
@@ -9,7 +10,7 @@ let [_l, _t, _r, _b] = _rect;
 let $_sto = storagesx.create('af_cfg');
 let _o = {
     rect: _rect,
-    af_rect: $_sto.get('config', {}).eballs_recognition_region
+    af_rect: $_sto.get('config', {}).energyBallsRecognitionRegion
         .map((v, i) => i % 2 ? cYx(v, true) : cX(v, true)),
     seekbar: [
         {title: '左', range: [_l - _dx, _l + _dx, _l]},
@@ -52,16 +53,16 @@ function _setHint() {
 
 function _setWinCtrl() {
     _win_ctrl = floaty.rawWindow(
-        <vertical bg="#e4dceeec" padding="16" id="ctrl"
+        <vertical bg="#E4DCEEEC" padding="16" id="ctrl"
                   w="*" h="auto" layout_gravity="bottom">
             <horizontal w="*">
-                <button id="btn_help" text="帮助" layout_weight="1" backgroundTint="#90caf9"/>
-                <button id="btn_restore" text="重置" layout_weight="1" backgroundTint="#ffe0b2"/>
-                <button id="btn_cancel" text="放弃" layout_weight="1" backgroundTint="#b0bec5"/>
-                <button id="btn_confirm" text="保存" layout_weight="1" backgroundTint="#81c784"/>
+                <x-button id="btn_help" text="帮助" layout_weight="1" backgroundTint="#90CAF9"/>
+                <x-button id="btn_restore" text="重置" layout_weight="1" backgroundTint="#FFE0B2"/>
+                <x-button id="btn_cancel" text="放弃" layout_weight="1" backgroundTint="#B0BEC5"/>
+                <x-button id="btn_confirm" text="保存" layout_weight="1" backgroundTint="#81C784"/>
             </horizontal>
             <vertical w="*" margin="10" gravity="center">
-                <text id="hint" gravity="center">按 '帮助' 按钮获得详细支持</text>
+                <x-text id="hint" gravity="center" text="按 '帮助' 按钮获得详细支持"/>
             </vertical>
         </vertical>);
     _win_ctrl.setSize(-1, -1);
@@ -94,7 +95,7 @@ function _setWinCtrl() {
                 d.dismiss();
 
                 $_sto.put('config', {
-                    eballs_recognition_region: _sess_rect
+                    energyBallsRecognitionRegion: _sess_rect
                         .map((v, i) => i % 2 ? cYx(v, true) : cX(v, true)),
                 });
 
@@ -183,7 +184,7 @@ function _setSeekbar(opt, idx) {
     let [min, max, init] = range;
     if (isNaN(+min)) min = 0;
     if (isNaN(+init)) {
-        let _init = $_sto.def.af[config_conj];
+        let _init = $_sto['def']['af'][config_conj];
         init = isNaN(+_init) ? min : _init;
     }
     if (isNaN(+max)) max = 100;
@@ -191,15 +192,9 @@ function _setSeekbar(opt, idx) {
     let new_view = ui.inflate(
         <vertical>
             <horizontal margin="6 9" w="*">
-                <text
-                    id="_text" gravity="left" w="54"
-                    layout_gravity="left"
-                />
-                <seekbar
-                    id="_seekbar" w="*"
-                    style="@android:style/Widget.Material.SeekBar"
-                    layout_gravity="center"
-                />
+                <x-text id="_text" gravity="left" w="54" layout_gravity="left"/>
+                <seekbar id="_seekbar" w="*" layout_gravity="center"
+                    style="@android:style/Widget.Material.SeekBar"/>
             </horizontal>
         </vertical>);
     new_view['_seekbar'].setMax(max - min);
@@ -207,7 +202,7 @@ function _setSeekbar(opt, idx) {
 
     let update = (src) => {
         let _s = (title ? title + ': ' : '') + src.toString() + (unit ? ' ' + unit : '');
-        return new_view._text.setText(_s);
+        return new_view['_text'].setText(_s);
     };
 
     update(init);
